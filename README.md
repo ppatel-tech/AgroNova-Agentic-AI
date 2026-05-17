@@ -62,3 +62,5 @@ Technology Stack
 
 🛡️ License
 Developed by Team Agrotitens for the 2026 Agentic AI Hackathon. Backend & Agent Logic Lead: Purushottam Patel
+
+⚠️ Security Note: All sensitive API keys and credentials have been removed from the workflow JSON files for security reasons. Users should replace placeholders with their own valid API keys (Gemini, OpenWeather, etc.) to run the workflows.
