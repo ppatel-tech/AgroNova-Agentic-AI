@@ -1,0 +1,206 @@
+{
+  "name": "7_days_weather_prediction",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Weather_Prediction",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        -96
+      ],
+      "id": "469be53d-1220-4b28-8f50-724d89649e6a",
+      "name": "Webhook",
+      "webhookId": "6226541a-8d69-4fab-947f-67b9d80c6a4a"
+    },
+    {
+      "parameters": {
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "lat",
+              "value": "={{ $json.body.lat }}"
+            },
+            {
+              "name": "lon",
+              "value": "={{ $json.body.lon }}"
+            },
+            {
+              "name": "appid",
+              "value": "aef4adfda996e1def9b2c8e76a8177e9"
+            },
+            {
+              "name": "units",
+              "value": "metric"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        176,
+        -96
+      ],
+      "id": "6018da9f-45e0-4e1a-b65e-954a132a0f10",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are a weather analysis assistant.\n\nYou will receive current weather from OpenWeather API. \n\nYour task:\n1. Analyze the provided weather data carefully.\n2. Generate:\n   - today's weather summary\n   - next 7 days weather forecast prediction\n3. Response must be ONLY valid JSON.\n4. Do not add markdown, explanation, notes, or extra text.\n5. Keep temperature in Celsius.\n6. Rain chance should be realistic based on humidity, clouds, pressure, and weather condition.\n7. Use simple Hindi language.\n\nhere is weather details : \n\ntemp : {{ $json.main.temp }}\nhumidity : {{ $json.main.humidity }}\nwind speed : {{ $json.wind.speed }}\nname : {{ $json.name }}\ncountry : {{ $json.sys.country }}\ndescription : {{ $json.weather[0].description }}\n\n\nRequired JSON format:\n\n{\n  \"today_weather\": {\n    \"location\": \"\",\n    \"temperature\": \"\",\n    \"feels_like\": \"\",\n    \"condition\": \"\",\n    \"humidity\": \"\",\n    \"wind_speed\": \"\",\n    \"summary\": \"\"\n  },\n  \"seven_day_forecast\": [\n    {\n      \"day\": \"आज\",\n      \"temperature\": \"\",\n      \"humidity\": \"\",\n      \"rain_chance\": \"\",\n      \"condition\": \"\"\n    },\n    {\n      \"day\": \"कल\",\n      \"temperature\": \"\",\n      \"humidity\": \"\",\n      \"rain_chance\": \"\",\n      \"condition\": \"\"\n    },\n    {\n      \"day\": \"तीसरा दिन\",\n      \"temperature\": \"\",\n      \"humidity\": \"\",\n      \"rain_chance\": \"\",\n      \"condition\": \"\"\n    },\n    {\n      \"day\": \"चौथा दिन\",\n      \"temperature\": \"\",\n      \"humidity\": \"\",\n      \"rain_chance\": \"\",\n      \"condition\": \"\"\n    },\n    {\n      \"day\": \"पांचवां दिन\",\n      \"temperature\": \"\",\n      \"humidity\": \"\",\n      \"rain_chance\": \"\",\n      \"condition\": \"\"\n    },\n    {\n      \"day\": \"छठा दिन\",\n      \"temperature\": \"\",\n      \"humidity\": \"\",\n      \"rain_chance\": \"\",\n      \"condition\": \"\"\n    },\n    {\n      \"day\": \"सातवां दिन\",\n      \"temperature\": \"\",\n      \"humidity\": \"\",\n      \"rain_chance\": \"\",\n      \"condition\": \"\"\n    }\n  ]\n}\n\n\n"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        352,
+        -96
+      ],
+      "id": "83aa5aa9-b9f0-4575-af2d-8cc1a2be1c29",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "iVMWTJqreW63IdPs",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "679c0136-3367-471d-97b0-ffa9d63de268",
+              "name": "final_report",
+              "value": "={{ $json.content.parts[0].text }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        656,
+        -96
+      ],
+      "id": "a3e2719f-a917-4253-abea-648a9fbcc6ed",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Maan lijiye aapka data 'final_report' naam ki field mein hai\nconst rawData = items[0].json.final_report;\n\ntry {\n  // Agar Gemini ne JSON string bheji hai toh use object mein badle\n  return JSON.parse(rawData);\n} catch (e) {\n  // Agar wo simple text hai, toh use ek JSON object mein wrap karein\n  return {\n    \"weather_report\": rawData\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        -96
+      ],
+      "id": "9ccd2da0-8e31-468a-a167-ab5922c6c32b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Gemini se aaya hua raw text nikalte hain\nlet rawText = items[0].json.weather_report;\n\n// 2. Faltu ke markdown symbols (```json aur ```) ko hatate hain\nlet cleanText = rawText.replace(/```json|```/g, \"\").trim();\n\n// 3. Is saaf text ko asli JSON (Object) mein badalte hain\nlet finalJson = JSON.parse(cleanText);\n\n// 4. Ise n8n ke output ke liye return karte hain\nreturn finalJson;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        -96
+      ],
+      "id": "c5949b8f-0073-47f5-b036-cce96b7c7521",
+      "name": "Code in JavaScript1"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

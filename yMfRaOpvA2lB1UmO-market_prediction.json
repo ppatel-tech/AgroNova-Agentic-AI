@@ -1,0 +1,350 @@
+{
+  "name": "market prediction",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "295fc93c-6d50-4c45-9119-d59b66c92d4f",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -832,
+        -912
+      ],
+      "id": "9f639e59-5daf-4211-938e-34ce35007c81",
+      "name": "get_prediction",
+      "webhookId": "295fc93c-6d50-4c45-9119-d59b66c92d4f"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "46ea0d01-4f20-4082-ac80-ffa8326e0343",
+              "name": "market_name",
+              "value": "={{ $json.body.market_name }}",
+              "type": "string"
+            },
+            {
+              "id": "980355f4-2f18-4cc9-89b8-338e81bcec20",
+              "name": "commodity",
+              "value": "={{ $json.body.commodity }}",
+              "type": "string"
+            },
+            {
+              "id": "1852c900-7688-4985-8331-e7d16aa323da",
+              "name": "arrival_date",
+              "value": "={{ $json.body.arrival_date }}",
+              "type": "string"
+            },
+            {
+              "id": "d6ee6625-3d45-4d8b-a663-0d1439155429",
+              "name": "state",
+              "value": "={{ $json.body.state }}",
+              "type": "string"
+            },
+            {
+              "id": "8e72d466-5d35-40cc-990d-eed9a2831a50",
+              "name": "district",
+              "value": "={{ $json.body.district }}",
+              "type": "string"
+            },
+            {
+              "id": "5a4056e2-9e1a-4c51-9c79-d15f01535681",
+              "name": "lat",
+              "value": "={{ $json.body.lat }}",
+              "type": "number"
+            },
+            {
+              "id": "a2985a25-be58-4c80-94d4-c10994da70dd",
+              "name": "lon",
+              "value": "={{ $json.body.lon }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -560,
+        -912
+      ],
+      "id": "a2c2682a-f81c-4b08-b51a-0ea215c34f55",
+      "name": "Edit Fields4"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24?api-key=579b464db66ec23bdd0000016eba3f7ab943440a58806c6dc80f6b44&format=json&filters[State]={{ $json.state }}&filters[District]={{ $json.district }}&filters[Commodity]={{ $json.commodity }}&sort[Arrival_Date]=desc&limit=4000\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -288,
+        -784
+      ],
+      "id": "a338a3c3-45d9-4d54-a300-5472193cdc72",
+      "name": "All mondies"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nconst inputMarketRaw = input.market_name;\nconst inputDate = input.arrival_date; // format: DD/MM/YYYY\n\n// Normalize: APMC hatao, lowercase, extra spaces hatao\nconst normalize = (name) =>\n  name.toLowerCase().replace(/apmc/gi, \"\").replace(/\\s+/g, \" \").trim();\n\nconst inputMarket = normalize(inputMarketRaw);\n\n// Date se month aur years nikalo\nconst parts = inputDate.split(\"/\");\nconst inputMonth = parts[1];           // \"04\"\nconst currentYear = parseInt(parts[2]); // 2026\n\nconst allowedYears = [\n  currentYear,\n  currentYear - 1,\n  currentYear - 2\n];\n\n// Records all mondies node se aa rahe hain\nconst records = input.records;\n\nconst filtered = records.filter(item => {\n  const [day, month, year] = item.Arrival_Date.split(\"/\");\n\n  const recordMarket = normalize(item.Market);\n\n  // Dono taraf se check karo — APMC wala aur bina APMC wala dono match hon\n  const marketMatch =\n    recordMarket.includes(inputMarket) ||\n    inputMarket.includes(recordMarket);\n\n  const monthMatch = month === inputMonth;\n  const yearMatch = allowedYears.includes(parseInt(year));\n\n  return marketMatch && monthMatch && yearMatch;\n});\n\nreturn filtered.map(item => ({ json: item }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        -912
+      ],
+      "id": "c353d840-3ab1-47e8-8f5e-d387837062f4",
+      "name": "Code in JavaScript",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -112,
+        -912
+      ],
+      "id": "9f8ac694-37d6-451a-8c8c-9e0b7eef5fb2",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtered data jo pichle node se aa raha hai\nconst records = $input.all();\n\nif (!records || records.length === 0) {\n    return { json: { error: \"No historical data found to make a prediction.\" } };\n}\n\nconst market = records[0].json.Market || \"Unknown Market\";\nconst commodity = records[0].json.Commodity || \"Unknown Commodity\";\n\nlet totalModalPrice = 0;\nlet maxPrice = -Infinity;\nlet minPrice = Infinity;\nlet recentPrices = [];\n\nrecords.forEach(r => {\n    const price = Number(r.json.Modal_Price); \n    \n    if (price && !isNaN(price)) {\n        totalModalPrice += price;\n        if (price > maxPrice) maxPrice = price;\n        if (price < minPrice) minPrice = price;\n    }\n    \n    // Recent trend ke liye pichle kuch records (max 7) save kar lete hain\n    if(recentPrices.length < 7) {\n        // String ki jagah directly JSON object pass kar rahe hain\n        recentPrices.push({\n            date: r.json.Arrival_Date,\n            price: price\n        });\n    }\n});\n\nconst avgPrice = totalModalPrice / records.length;\n\n// Sirf calculated values return kar rahe hain, koi prompt nahi.\nreturn { \n    json: { \n        market_name: market, \n        commodity_name: commodity,\n        historical_stats: {\n            average_price: parseFloat(avgPrice.toFixed(2)),\n            highest_price: maxPrice === -Infinity ? null : maxPrice,\n            lowest_price: minPrice === Infinity ? null : minPrice\n        },\n        recent_trend: recentPrices\n    } \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        336,
+        -912
+      ],
+      "id": "f5fb69d9-c463-46e4-8a2d-916f0c918103",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Extract the text containing the JSON array from the Gemini output\nlet aiResponseText = $input.first().json.content.parts[0].text;\n\n// 2. Clean up any markdown formatting (like ```json or ```) just in case\naiResponseText = aiResponseText.replace(/```json/gi, \"\").replace(/```/g, \"\").trim();\n\ntry {\n    // 3. Parse the cleaned text into a Javascript Array (JSON)\n    const parsedData = JSON.parse(aiResponseText);\n\n    // 4. Return the data as individual items for n8n to process\n    return parsedData.map(item => ({ json: item }));\n\n} catch (error) {\n    // If parsing fails, output an error along with the raw text for debugging\n    return [{\n        json: {\n            error: \"Failed to parse AI output into JSON\",\n            raw_text: aiResponseText\n        }\n    }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        -912
+      ],
+      "id": "42918708-b7e1-4065-917e-829f7446be73",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "appid",
+              "value": "aef4adfda996e1def9b2c8e76a8177e9"
+            },
+            {
+              "name": "units",
+              "value": "metric"
+            },
+            {
+              "name": "lat",
+              "value": "23.45"
+            },
+            {
+              "name": "lon",
+              "value": "75.43"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        -912
+      ],
+      "id": "be47923c-933c-44c4-a23f-4a5f270b1c9c",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1312,
+        -912
+      ],
+      "id": "cd9dd3bc-1f4f-4fe3-a018-0c5566bdf823",
+      "name": "Respond to Webhook2"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=ROLE:\nYou are an expert agricultural commodity analyst in India.\n\n\nINPUT DATA:\n1. Market Details\n\t• Market: {{ $('Edit Fields4').item.json.market_name }} \n\t• District: {{ $('Edit Fields4').item.json.district }} \n\t• Commodity: {{ $('Edit Fields4').item.json.commodity }} \n\ntodays date : {{ $('Edit Fields4').item.json.arrival_date }}\n\n2. Historical Context (April data from last 3 years)\n\t• Average Modal Price: {{ $('Code in JavaScript1').item.json.historical_stats.average_price }} \n\t• Highest Price: {{ $('Code in JavaScript1').item.json.historical_stats.highest_price }} \n\t• Lowest Price: {{ $('Code in JavaScript1').item.json.historical_stats.lowest_price }} \n\n\n3. Recent Market Trend (Daily Prices)\ndate : {{ $('Code in JavaScript1').item.json.recent_trend[0].date }}\nprice: {{ $('Code in JavaScript1').item.json.recent_trend[0].price }}\n\ndate: {{ $('Code in JavaScript1').item.json.recent_trend[0].date }}\nprice : {{ $('Code in JavaScript1').item.json.recent_trend[1].price }}\n\ndate price : {{ $('Code in JavaScript1').item.json.recent_trend[2].date }}\nprice : {{ $('Code in JavaScript1').item.json.recent_trend[2].price }}\n\n\ndate : {{ $('Code in JavaScript1').item.json.recent_trend[3].date }}\nprice : {{ $('Code in JavaScript1').item.json.recent_trend[3].price }}\n\ndate : \nprice : \n\n\ndate : {{ $('Code in JavaScript1').item.json.recent_trend[5].date }}\nprice : {{ $('Code in JavaScript1').item.json.recent_trend[5].price }}\n\n\n\ndate : {{ $('Code in JavaScript1').item.json.recent_trend[6].date }}\nprice : {{ $('Code in JavaScript1').item.json.recent_trend[6].price }}\n\n\n4. Current Weather Data\n\t• Temperature: {{ $json.main.temp }} \n\t• Humidity: {{ $json.main.humidity }} \n\t• Wind Speed: {{ $json.wind.speed }} \n\t• Description: {{ $json.weather[0].description }} \n\n\nTASK:\n\t1. Predict the Modal Price for the next 10 days starting from tomorrow. \n\t2. Use: \n\t\t○ Historical averages \n\t\t○ Recent price momentum \n\t\t○ Weather conditions \n\t3. Based on current weather, estimate weather trends for the next few days and incorporate their impact on prices. \n\t4. Analyze current government policies and local restrictions affecting the mandi in: \n\t\t○ {{ $('Edit Fields4').item.json.market_name }} \n\t\t○ {{ $('Edit Fields4').item.json.district }} district \n\t5. Factor in general market behavior: \n\t\t○ If recent prices are much higher than historical average → consider continuation or correction \n\t\t○ If lower → consider recovery or stagnation \n\n\nOUTPUT FORMAT (STRICT):\n\t• Return ONLY a JSON array \n\t• Do NOT include markdown (no ```json) \nExample:\n[\n{\n\"date\": \"DD/MM/YYYY\",\n\"price\": 0000,\n\"rain\": 0.2% (should be number not string),\n\"temp\": 00.0(should be number not string),\n\"current news\": \"write in one line if something exists otherwise say no current news\",\n\"confidence level\": 60%(should be number not string),\n\"note\": \"prices may be very depending upon demand and supply\"\n},\n{\n\"date\": \"DD/MM/YYYY\",\n\"price\": 0000,\n\"rain\": 5% (should be in number not in string),\n\"temp\": 00.0(should be in number not in string),\n\"current news\": \"write in one line if something exists otherwise say no current news\",\n\"confidence level\": 60%(should be in number not in string),\n\"note\": \"prices may be very depending upon demand and supply\"\n}\n]\n"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        752,
+        -912
+      ],
+      "id": "92af2b4f-27a1-48d3-a694-0abeb8bba777",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "get_prediction": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields4": {
+      "main": [
+        [
+          {
+            "node": "All mondies",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All mondies": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

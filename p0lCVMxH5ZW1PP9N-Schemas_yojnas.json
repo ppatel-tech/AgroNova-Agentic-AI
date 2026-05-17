@@ -1,0 +1,126 @@
+{
+  "name": "Schemas&yojnas",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "=get-yojna-list",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -192,
+        -32
+      ],
+      "id": "21fa206f-ef9d-4d3d-adcd-d504e3f53930",
+      "name": "Webhook",
+      "webhookId": "8a72f82d-7a1f-4c0a-adc2-64879a57ec8c"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "Act as an expert in Indian Government Agriculture Schemes with access to the latest and most reliable data (2025–2026). Your task is to identify and return ONLY the top 5 most important, high-impact, and widely used central government schemes for farmers in India.\n\nSelection Criteria (STRICT):\n\nInclude ONLY schemes that provide direct, practical benefits to farmers (income support, insurance, credit, irrigation, subsidy).\nPrioritize flagship and highly adopted schemes (e.g., PM-KISAN, PMFBY, KCC).\nAvoid minor, outdated, or less impactful schemes.\nEnsure all schemes are currently active and relevant.\n\nOutput Requirements (MANDATORY):\n\nReturn ONLY a valid JSON array.\nDo NOT include any explanation, text, or formatting outside JSON.\nDo NOT use markdown (no json or ).\n\nEach object MUST contain:\n\n\"yojna_name\" → Official scheme name (in hindi ).\n\"description\" → Very short (max 10–12 words), simple Hindi (Devanagari), clearly stating main benefit.\n\"website_url\" → Official government website link ONLY (no third-party links).\n\nLanguage Rules:\n\neverything MUST be in Hindi.\nKeep wording clear, concise, and farmer-friendly.\n\nQuality Constraints:\n\nEnsure 100% factual accuracy.\nAvoid duplication.\nFocus on real benefit (money, insurance, subsidy, loan, irrigation).\n\nExpected Output Format:\n[\n{\n\"yojna_name\": \"\",\n\"description\": \"\",\n\"website_url\": \"\"\n}\n]"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        -32
+      ],
+      "id": "1b620f7a-0202-4936-8d2a-02fd2b063bd9",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "iVMWTJqreW63IdPs",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        560,
+        -32
+      ],
+      "id": "0a49212d-971f-4b47-ae9d-ae1c1c983e59",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawText = items[0].json.content.parts[0].text;\n// Markdown blocks (```json) ko hatane ke liye\nconst cleanJson = rawText.replace(/```json|```/g, \"\"); \nreturn JSON.parse(cleanJson);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        -32
+      ],
+      "id": "89a584d9-4984-40ff-a097-dc6ac1f7edb4",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

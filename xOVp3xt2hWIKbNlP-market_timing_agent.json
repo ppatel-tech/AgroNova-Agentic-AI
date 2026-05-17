@@ -1,0 +1,589 @@
+{
+  "name": "market timing agent",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        -528
+      ],
+      "id": "8dfe2e66-dda9-4a52-b9d2-ca06399f8e6c",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=\"I have a district named {{ $json.District }} in the state of {{ $json.State }}, India. Please give me a list of all its neighboring districts.\n\nImportant: Give the output ONLY as a JSON array of strings, like this: [\"District1\", \"District2\", \"District3\"]. Do not write any other text or explanation.\""
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -640,
+        -560
+      ],
+      "id": "80748584-2255-4dad-94ef-43444bbb7259",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "district_array",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        -416
+      ],
+      "id": "8d6c075c-1d79-498d-93c2-ba042f79ae5f",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b76ab82b-9058-488b-af4f-ecaf854a7c62",
+              "name": "Commodity",
+              "value": "Wheat",
+              "type": "string"
+            },
+            {
+              "id": "b0a18001-8317-4b9d-ae8e-3394bc789ff7",
+              "name": "State",
+              "value": "Madhya Pradesh",
+              "type": "string"
+            },
+            {
+              "id": "97c04abf-1d59-4483-b364-1acfbb4bccb5",
+              "name": "District",
+              "value": "Badwani",
+              "type": "string"
+            },
+            {
+              "id": "960bd133-bf5e-454a-90bf-273ab92ca999",
+              "name": "cropQuantity",
+              "value": 100,
+              "type": "number"
+            },
+            {
+              "id": "51d81d71-256c-4bd0-92c5-70be227a0f31",
+              "name": "user_lat",
+              "value": 22.03,
+              "type": "number"
+            },
+            {
+              "id": "cfe68230-0eee-4bc6-b4a8-6332be73528e",
+              "name": "user_lon",
+              "value": 74.9,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -816,
+        -512
+      ],
+      "id": "56044a94-9763-4ace-838c-f7f848b3a138",
+      "name": "INPUTS"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2b563cd9-98d9-4ae3-83e0-efd39ebcef51",
+              "name": "=district_array",
+              "value": "={{ JSON.parse($json.content.parts[0].text.replace(/```json|```/g, \"\").trim()) }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -224,
+        -736
+      ],
+      "id": "c03e0bd5-fab0-40b1-9d00-72536b28df46",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24?api-key=579b464db66ec23bdd0000016eba3f7ab943440a58806c6dc80f6b44&format=json&filters[State]={{ $('INPUTS').first().json.State }}&filters[District]={{ $json.district_array }}&filters[Commodity]={{ $('INPUTS').first().json.Commodity }}&filters[Arrival_Date]=19/04/2026&limit=100",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": ""
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        0,
+        -80
+      ],
+      "id": "fac1246d-d2ca-4ab6-89b8-20942a356162",
+      "name": "All mandies"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "=records",
+        "include": "selectedOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        192,
+        -624
+      ],
+      "id": "12fcb1ee-dd64-4924-9e5f-eff056f45fe0",
+      "name": "Split Out1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// n8n ab $json mein purani searchDate lekar aayega kyunki humne 'Include Input Fields' on kar diya hai\nlet currentSearchDate = $json.searchDate;\n\n// Agar kisi wajah se pehli baar hai aur searchDate nahi mili\nif (!currentSearchDate) {\n    currentSearchDate = $('current date').item.json.searchDate;\n}\n\n// 1 din ghatao\nconst previousDate = DateTime.fromFormat(currentSearchDate, \"dd/MM/yyyy\").minus({ days: 1 }).toFormat(\"dd/MM/yyyy\");\n\nreturn {\n  searchDate: previousDate,\n  district_array: $json.district_array // district bhi aage bhej rahe hain\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        0
+      ],
+      "id": "8df32397-52f5-4226-8651-f88ca388e342",
+      "name": "Date Minus 1"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        816,
+        0
+      ],
+      "id": "7599be7c-eb87-4877-ac77-23a5fafefb1f",
+      "name": "Wait",
+      "webhookId": "1f72800b-f48b-4f2b-b086-512dca8a969b"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "records.Modal_Price",
+              "order": "descending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -384
+      ],
+      "id": "6db63966-16a0-4c28-aab8-cb837a655ae1",
+      "name": "Sort"
+    },
+    {
+      "parameters": {
+        "maxItems": 5
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        528,
+        -384
+      ],
+      "id": "54eeb4a6-02f9-4da4-8a28-8300b61448b8",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4d16d811-f547-4d3e-bc5f-19790c9622e7",
+              "name": "District",
+              "value": "={{ $json.District }}",
+              "type": "string"
+            },
+            {
+              "id": "aa92fd9e-df25-4608-9bd5-08235cf8bc84",
+              "name": "mandi",
+              "value": "={{ $json.Market }}",
+              "type": "string"
+            },
+            {
+              "id": "1cf6f1d1-c881-46f4-9ecb-8c35bcd18121",
+              "name": "Bhav",
+              "value": "={{ $json.Modal_Price }}",
+              "type": "number"
+            },
+            {
+              "id": "9dab18b1-843f-4de5-9db3-525ae4fbd941",
+              "name": "date",
+              "value": "={{ $json.Arrival_Date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        -384
+      ],
+      "id": "b64f3e56-8cab-4645-9446-055099ba383f",
+      "name": "Top 5 Mandis"
+    },
+    {
+      "parameters": {
+        "url": "=https://nominatim.openstreetmap.org/search?q={{ $json.mandi.replace(' APMC', '') }}, {{ $json.District }}, {{ $('INPUTS').first().json.State }}&format=json&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "KisanMandiAgent/1.0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        928,
+        -384
+      ],
+      "id": "2016b20e-88e8-42e6-8f90-bbc8877734ef",
+      "name": "Geocoding",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8e3e2cb6-913e-44b6-ae38-20324629288e",
+              "name": "Mandi",
+              "value": "={{ $json.mandi }}",
+              "type": "string"
+            },
+            {
+              "id": "ff2e0232-e9a4-4368-bef6-16ddf2bf2c4a",
+              "name": "Bhav",
+              "value": "={{ $json.bhav }}",
+              "type": "number"
+            },
+            {
+              "id": "e36a4805-0ef5-4968-840e-d3c319fbdd0d",
+              "name": "Quantity",
+              "value": "={{ $json.quantity }}",
+              "type": "number"
+            },
+            {
+              "id": "15d22b58-ab00-467f-b0d5-e32d297e74d5",
+              "name": "Gross Revenue:",
+              "value": "={{ $json.total_revenue }}",
+              "type": "number"
+            },
+            {
+              "id": "b573fdc6-b037-499a-8704-0a972d292fc5",
+              "name": "Distance(in km):",
+              "value": "={{ $json.distance_km }}",
+              "type": "number"
+            },
+            {
+              "id": "d9263831-1690-4324-8faf-dcdc9ebf7a86",
+              "name": "Note:",
+              "value": "=Transport & other costs not included",
+              "type": "string"
+            },
+            {
+              "id": "1867fc27-035f-47fb-b624-fad086848914",
+              "name": "date",
+              "value": "={{ $('Top 5 Mandis').item.json.date }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1328,
+        -384
+      ],
+      "id": "047c586b-0d4a-4e89-9e82-fa4bd6e7ce63",
+      "name": "final response"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 1. Inputs se data uthao\nconst quantity = $('INPUTS').first().json.cropQuantity;\nconst userLat = $('INPUTS').first().json.user_lat;\nconst userLon = $('INPUTS').first().json.user_lon;\n\n// 2. Mandi ka data\nconst mandiPrice = $('Top 5 Mandis').item.json.Bhav;\nconst mandiLat = parseFloat($json.lat);\nconst mandiLon = parseFloat($json.lon);\n\n// 3. Distance Calculation (Haversine)\nfunction getDistance(lat1, lon1, lat2, lon2) {\n    const R = 6371;\n    const dLat = (lat2 - lat1) * Math.PI / 180;\n    const dLon = (lon2 - lon1) * Math.PI / 180;\n    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +\n              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);\n    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));\n    return (R * c).toFixed(2);\n}\n\nconst km = getDistance(userLat, userLon, mandiLat, mandiLon);\n\n// 4. Profit Estimation Logic\nconst transportRate = 10; // Maan lete hain ₹10 per KM diesel ka kharcha\nconst grossRevenue = mandiPrice * quantity;\nconst estimatedTransport = km * transportRate;\nconst netProfit = grossRevenue - estimatedTransport;\n\nreturn {\n    mandi: $('Top 5 Mandis').item.json.mandi,\n    bhav: mandiPrice,\n    quantity: quantity,\n    total_revenue: grossRevenue,\n    distance_km: parseFloat(km),\n    estimated_profit: netProfit.toFixed(2)\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        -384
+      ],
+      "id": "ad156d7e-8ef0-46ee-9dd6-177abbf3bd8c",
+      "name": "calculations"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "INPUTS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "All mandies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "INPUTS": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "All mandies": {
+      "main": [
+        [
+          {
+            "node": "Split Out1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out1": {
+      "main": [
+        [
+          {
+            "node": "Sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Date Minus 1": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        []
+      ]
+    },
+    "Sort": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Top 5 Mandis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Top 5 Mandis": {
+      "main": [
+        [
+          {
+            "node": "Geocoding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geocoding": {
+      "main": [
+        [
+          {
+            "node": "calculations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "calculations": {
+      "main": [
+        [
+          {
+            "node": "final response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {
+    "calculations": [
+      {
+        "json": {
+          "mandi": "Ashta APMC",
+          "bhav": 2850,
+          "quantity": 10,
+          "total_revenue": 28500,
+          "distance_km": 84.21,
+          "estimated_profit": "27657.90"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      },
+      {
+        "json": {
+          "mandi": "Dewas APMC",
+          "bhav": 2750,
+          "quantity": 10,
+          "total_revenue": 27500,
+          "distance_km": 127.71,
+          "estimated_profit": "26222.90"
+        },
+        "pairedItem": {
+          "item": 1
+        }
+      },
+      {
+        "json": {
+          "mandi": "Dewas APMC",
+          "bhav": 2650,
+          "quantity": 10,
+          "total_revenue": 26500,
+          "distance_km": 127.71,
+          "estimated_profit": "25222.90"
+        },
+        "pairedItem": {
+          "item": 2
+        }
+      },
+      {
+        "json": {
+          "mandi": "Babai APMC",
+          "bhav": 2635,
+          "quantity": 10,
+          "total_revenue": 26350,
+          "distance_km": 80.29,
+          "estimated_profit": "25547.10"
+        },
+        "pairedItem": {
+          "item": 3
+        }
+      }
+    ]
+  },
+  "triggerCount": 0,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

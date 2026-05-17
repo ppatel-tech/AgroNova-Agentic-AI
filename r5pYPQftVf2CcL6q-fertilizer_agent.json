@@ -1,0 +1,610 @@
+{
+  "name": "fertilizer_agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "fertilizer_agent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1008,
+        32
+      ],
+      "id": "f1c07a80-5798-49e8-a199-ac2f1bc0afa4",
+      "name": "Webhook",
+      "webhookId": "94316a12-d663-4588-ad71-e20f8e940730"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c48ba5e5-e960-4721-aafa-637bf804f933",
+              "leftValue": "={{$binary.image}}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -560,
+        32
+      ],
+      "id": "3d6f44e3-b473-4b32-9eb6-a1b77f0fd050",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "text": "Analyze this soil report image and extract ONLY the following values:\n\n- pH\n- Nitrogen (N)\n- Phosphorus (P)\n- Potassium (K)\n- Electrical Conductivity (EC)\n- Moisture\n\nRules:\n\n1. If the image is NOT a valid soil report OR the text is unreadable/blurred/failed OCR OR the required values cannot be identified confidently, return ONLY:\n\n{\n  \"success\": false,\n  \"message\": \"Invalid soil report or OCR failed\"\n}\n\n2. If the image is a valid soil report and values are detected, return STRICT JSON in this exact format:\n\n{\n  \"success\": true,\n  \"ph\": \"\",\n  \"nitrogen\": \"\",\n  \"phosphorus\": \"\",\n  \"potassium\": \"\",\n  \"ec\": \"\",\n  \"moisture\": \"\"\n}\n\n3. If some fields are missing but the report is still valid, keep success=true and set missing fields to null.\n\nExample:\n\n{\n  \"success\": true,\n  \"ph\": \"6.8\",\n  \"nitrogen\": null,\n  \"phosphorus\": \"34\",\n  \"potassium\": \"120\",\n  \"ec\": \"0.45\",\n  \"moisture\": null\n}\n\n4. Return ONLY raw JSON.\n5. Do NOT add markdown.\n6. Do NOT add explanations.\n7. Do NOT add extra fields.\n8. Do NOT return text before or after JSON.",
+        "inputType": "binary",
+        "binaryPropertyName": "image",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -336,
+        -160
+      ],
+      "id": "e00f3ae1-d620-4378-a22a-941c542d0712",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Gemini response se text nikaalo\nlet rawText = $json.content?.parts?.[0]?.text || \"\";\n\n// ```json ... ``` remove karo\nrawText = rawText.replace(/```json|```/g, \"\").trim();\n\n// JSON parse karne ki koshish\nlet data = {};\n\ntry {\n  data = JSON.parse(rawText);\n} catch (e) {\n  data = {};\n}\n\n// Final clean output (numbers me convert bhi kar rahe hain)\nreturn {\n  ph: data.ph ? parseFloat(data.ph) : null,\n  nitrogen: data.nitrogen ? parseFloat(data.nitrogen) : null,\n  phosphorus: data.phosphorus ? parseFloat(data.phosphorus) : null,\n  potassium: data.potassium ? parseFloat(data.potassium) : null,\n  ec: data.ec ? parseFloat(data.ec) : null,\n  moisture: data.moisture ? parseFloat(data.moisture) : null\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        -160
+      ],
+      "id": "887be9d0-73ae-4f88-b32d-b8fcbce83bff",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "48c0f091-6cb5-4d1b-9ed4-216d23c09f84",
+              "name": "crop_name",
+              "value": "={{ $json.crop_name }}",
+              "type": "string"
+            },
+            {
+              "id": "3fba4e30-47c6-48f2-bf8b-ad3aa3e01cae",
+              "name": "farm_area",
+              "value": "={{ $json.farm_area }}",
+              "type": "string"
+            },
+            {
+              "id": "45e907e8-c376-4b9d-be2a-d450a16bb1f7",
+              "name": "crop_stage",
+              "value": "={{ $json.crop_stage }}",
+              "type": "string"
+            },
+            {
+              "id": "876407cc-7ead-46fc-bb08-37355d3b9f0d",
+              "name": "soil_type",
+              "value": "={{ $json.soil_type }}",
+              "type": "string"
+            },
+            {
+              "id": "3acdc322-2721-42d6-a2cd-1269297afabf",
+              "name": "fertilizer_info",
+              "value": "={{ $json.fertilizer_info }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        96,
+        48
+      ],
+      "id": "0aaf88db-d69c-4df5-b30a-26388c365d5d",
+      "name": "NO OCR"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "eddcd47f-53cd-4e67-b84b-a45c46f0397b",
+              "name": "ph",
+              "value": "={{ $json.ph }}",
+              "type": "number"
+            },
+            {
+              "id": "a680f861-baff-4095-bb48-38bc2721c68f",
+              "name": "nitrogen",
+              "value": "={{ $json.nitrogen }}",
+              "type": "number"
+            },
+            {
+              "id": "69843632-f591-41f6-9f20-42a02ed98537",
+              "name": "phosphorus",
+              "value": "={{ $json.phosphorus }}",
+              "type": "number"
+            },
+            {
+              "id": "d2e8e050-98e1-4989-ada9-b905f0f5fa85",
+              "name": "potassium",
+              "value": "={{ $json.potassium }}",
+              "type": "number"
+            },
+            {
+              "id": "1e84e462-2ca2-4e94-9172-c9b39e25b750",
+              "name": "ec",
+              "value": "={{ $json.ec }}",
+              "type": "number"
+            },
+            {
+              "id": "bb6d9b46-6f6b-446c-91b3-a5c4b36b740c",
+              "name": "moisture",
+              "value": "={{ $json.moisture }}",
+              "type": "number"
+            },
+            {
+              "id": "2c0d1057-9f66-4775-9399-e95b3bb57b4a",
+              "name": "crop_name",
+              "value": "={{ $('Code in JavaScript2').item.json.crop_name }}",
+              "type": "string"
+            },
+            {
+              "id": "cc28f61f-7adc-4053-b6dc-f51d1416b492",
+              "name": "farm_area",
+              "value": "={{ $('Code in JavaScript2').item.json.farm_area }}",
+              "type": "string"
+            },
+            {
+              "id": "1cbf2590-acea-4c4b-a131-f7352125c374",
+              "name": "crop_stage",
+              "value": "={{ $('Code in JavaScript2').item.json.crop_stage }}",
+              "type": "string"
+            },
+            {
+              "id": "0bd01c75-ce05-406a-924e-83af0332bc2a",
+              "name": "soil_type",
+              "value": "={{ $('Code in JavaScript2').item.json.soil_type }}",
+              "type": "string"
+            },
+            {
+              "id": "4707bd17-ccb2-4e2c-806f-ec1b3b816ba3",
+              "name": "fertilizer_info",
+              "value": "={{ $('Code in JavaScript2').item.json.fertilizer_info }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        -160
+      ],
+      "id": "c8170416-b6ab-460e-a388-9ef8f1e6b234",
+      "name": "With OCR"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cdfaf143-c75e-4fce-8735-712b448ab80d",
+              "name": "crop_name",
+              "value": "={{ $json.crop_name }}",
+              "type": "string"
+            },
+            {
+              "id": "68fe8f3b-6a5a-4024-8795-c46fdc7b026c",
+              "name": "farm_area",
+              "value": "={{ $json.farm_area }}",
+              "type": "string"
+            },
+            {
+              "id": "1dbe6857-4014-41c4-8add-ae2acc2efd63",
+              "name": "crop_stage",
+              "value": "={{ $json.crop_stage }}",
+              "type": "string"
+            },
+            {
+              "id": "a8a93ccd-5c7b-4b49-972f-42bd8bb31e1d",
+              "name": "soil_type",
+              "value": "={{ $json.soil_type }}",
+              "type": "string"
+            },
+            {
+              "id": "c7862367-753e-4f6b-a43e-2d2705088b44",
+              "name": "ph",
+              "value": "={{ $json.ph }}",
+              "type": "number"
+            },
+            {
+              "id": "5dcff30f-02df-4f77-8262-5732fbbc4c7e",
+              "name": "nitrogen",
+              "value": "={{ $json.nitrogen }}",
+              "type": "number"
+            },
+            {
+              "id": "c6ccac67-8494-499c-b527-0be20e603d02",
+              "name": "phosphorus",
+              "value": "={{ $json.phosphorus }}",
+              "type": "number"
+            },
+            {
+              "id": "7e17f8af-3401-4d40-b745-a51bf7aa1f73",
+              "name": "potassium",
+              "value": "={{ $json.potassium }}",
+              "type": "number"
+            },
+            {
+              "id": "c4f2d3e6-ebf7-4786-8036-9e8a348d6876",
+              "name": "ec",
+              "value": "={{ $json.ec }}",
+              "type": "number"
+            },
+            {
+              "id": "ce452862-e231-4dc5-944d-554a450d6e5f",
+              "name": "moisture",
+              "value": "={{ $json.moisture }}",
+              "type": "number"
+            },
+            {
+              "id": "62435e1c-9d3b-4d47-b2fd-58a6d1a39959",
+              "name": "fertilizer_info",
+              "value": "={{ $json.fertilizer_info }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        752,
+        -64
+      ],
+      "id": "009be0b1-8c5e-4dfe-81ab-27d1bfa722a4",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert agricultural advisor.\n\nAnalyze the given data carefully and generate precise fertilizer recommendations.that can help in crop growth.\n\n-------------------------\nUSER INPUT DATA\n-------------------------\nCrop: {{$json.crop_name}}\nFarm Area: {{$json.farm_area}} acres\nCrop Stage: {{$json.crop_stage}}\nSoil Type: {{$json.soil_type}}\n\n-------------------------\nSOIL TEST DATA (ignore fields if null or missing)\n-------------------------\npH: {{$json.ph}}\nNitrogen (N): {{$json.nitrogen}}\nPhosphorus (P): {{$json.phosphorus}}\nPotassium (K): {{$json.potassium}}\nElectrical Conductivity (EC): {{$json.ec}}\nMoisture: {{$json.moisture}}\n\n-------------------------\nUSER PROVIDED FERTILIZER (optional)\n-------------------------\n{{$json.fertilizer_info}}\n\n-------------------------\nTASKS\n-------------------------\n1. Recommend exactly 3 best fertilizers based on crop, soil, and stage.\n2. For each recommended fertilizer:\n   - Give name\n   - Quantity per acre (ek acre me kitna lagega)\n   - Total quantity for {{$json.farm_area}} acres (total farm matlab pure khet ke liye kitna lagega for total acre)\n3. If user has provided a fertilizer:\n   - Calculate exact dosage for that fertilizer (per acre + total)\n4. If user has NOT provided fertilizer:\n   - Return \"not_provided\" in user fertilizer section\n5. Give 3–5 practical farming tips\n\n-------------------------\nIMPORTANT RULES\n-------------------------\n- Always return valid JSON only\n- No explanations, no extra text\n- All quantities should include units (e.g., \"50 kg/acre\")\n- Numeric values should be realistic and practical\n- Keep recommendations agronomically correct\n\n-------------------------\nOUTPUT FORMAT (STRICT)\n-------------------------\n\n{\n  \"recommended_fertilizers\": [\n    {\n      \"name\": \"\",\n      \"quantity_per_acre\": \"\",\n      \"total_quantity\": \"\"\n    },\n    {\n      \"name\": \"\",\n      \"quantity_per_acre\": \"\",\n      \"total_quantity\": \"\"\n    },\n    {\n      \"name\": \"\",\n      \"quantity_per_acre\": \"\",\n      \"total_quantity\": \"\"\n    }\n  ],\n  \"user_fertilizer\": {\n    \"name\": \"\",\n    \"status\": \"provided or not_provided\",\n    \"quantity_per_acre\": \"\",\n    \"total_quantity\": \"\"\n  },\n  \"tips\": [\n    \"\",\n    \"\",\n    \"\"\n  ]\n}\n\n\nrule : keep eveything in hindi\n"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        928,
+        -64
+      ],
+      "id": "e3bb6a95-d1cc-4847-9046-2988db082c70",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Step 1: Deep path se actual text nikaalo\nlet rawText = $json?.content?.parts?.[0]?.text || \"\";\n\n// Step 2: JSON block extract karo (safe approach)\nlet match = rawText.match(/\\{[\\s\\S]*\\}/);\n\nlet data = {};\n\nif (match) {\n  try {\n    data = JSON.parse(match[0]);\n  } catch (e) {\n    data = {};\n  }\n}\n\n// Step 3: Final structured output return karo\nreturn {\n  recommended_fertilizers: data.recommended_fertilizers || [],\n  \n  user_fertilizer: {\n    name: data.user_fertilizer?.name || \"not provided\",\n    status: data.user_fertilizer?.status || \"not_provided\",\n    quantity_per_acre: data.user_fertilizer?.quantity_per_acre || \"not applicable\",\n    total_quantity: data.user_fertilizer?.total_quantity || \"not applicable\"\n  },\n\n  tips: data.tips || []\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        -64
+      ],
+      "id": "c7018837-3815-4b04-853e-e73133441a79",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nlet finalData = {};\n\n// 1. STRICT CHECK: Check karo ki 'data' naam ka binary object exist karta hai ya nahi\nif (item.binary && item.binary.data) {\n  // Scenario A: Data binary file me aaya hai\n  const binaryDataBuffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n  const jsonString = binaryDataBuffer.toString('utf-8');\n  finalData = JSON.parse(jsonString);\n} \n// 2. Agar binary nahi hai, toh check karo ki standard body aayi hai kya\nelse if (item.json && item.json.body) {\n  // Scenario B: Data normally JSON body me aaya hai\n  finalData = item.json.body;\n} \n// 3. Failsafe (Agar dono hi format nahi mile)\nelse {\n  finalData = item.json; \n}\n\n// 4. Saari binary fields collect karo (agar koi 'data' ke alawa images wagerah aayi hain)\nconst allBinaries = {};\nif (item.binary) {\n  for (const key of Object.keys(item.binary)) {\n    if (key !== 'data') {\n      allBinaries[key] = item.binary[key];\n    }\n  }\n}\n\n// 5. Final item construct karo\nconst outputItem = {\n  json: {\n    ...finalData\n  }\n};\n\n// Binary object sirf tabhi attach karo jab actually koi aur image bachi ho\nif (Object.keys(allBinaries).length > 0) {\n  outputItem.binary = allBinaries;\n}\n\nreturn [outputItem];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -784,
+        32
+      ],
+      "id": "17b05165-84ba-44c5-8846-e5b5cd75e9cf",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1488,
+        -64
+      ],
+      "id": "94442fdb-0d1b-4373-993c-2d95b204073e",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "3d51b0dd-dc5a-4ac4-bd86-439dd5089566",
+              "leftValue": "={{ JSON.parse($json.content.parts[0].text).success }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -128,
+        -160
+      ],
+      "id": "7a644b3e-5d8d-4e28-a330-3f032fb0bc7b",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        304,
+        -512
+      ],
+      "id": "c1a50554-5051-43a6-8e12-8267fc2e27a7",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code Node\n\nconst input = $input.first().json;\n\n// text extract karo\nconst rawText = input.content.parts[0].text;\n\n// string ko JSON me parse karo\nconst parsedData = JSON.parse(rawText);\n\n// output return karo\nreturn [\n  {\n    json: parsedData\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        -512
+      ],
+      "id": "ab334a3d-0c56-4cae-836a-a69485e62c35",
+      "name": "Code in JavaScript3"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "NO OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "With OCR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NO OCR": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "With OCR": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook1": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

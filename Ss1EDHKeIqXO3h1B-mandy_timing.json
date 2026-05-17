@@ -1,0 +1,465 @@
+{
+  "name": "mandy timing",
+  "nodes": [
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=I have a district named {{ $json.District }} in the state of {{ $json.State }}, India.\n\nFind all neighboring districts of {{ $json.District }} and include {{ $json.District }} itself in the final list.\n\nReturn only a valid JSON array of strings.\nRules:\n- Output must be raw JSON only.\n- No explanation.\n- No extra text.\n- No markdown.\n- No duplicate district names.\n- Preserve proper district spelling.\n- If no neighboring districts are found, still return the given district as a single-item array.\n\nExample format:\n[\"District1\", \"District2\", \"District3\"]"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -480,
+        -704
+      ],
+      "id": "81e9fec7-8c3f-42c3-abbf-5521896e6559",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "district_array",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        -672
+      ],
+      "id": "f094ddd7-bfdc-44a4-9bd2-2286e513486b",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2b563cd9-98d9-4ae3-83e0-efd39ebcef51",
+              "name": "=district_array",
+              "value": "={{ JSON.parse($json.content.parts[0].text.replace(/```json|```/g, \"\").trim()) }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -208,
+        -288
+      ],
+      "id": "c396755b-a78a-4d9a-a2d1-aea4f877bdb6",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        48,
+        -240
+      ],
+      "id": "a1b8671d-e5ff-4b2b-8c20-283b910974b5",
+      "name": "Wait",
+      "webhookId": "2e8e36c4-4e5e-49c4-8e44-5314030890a0"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24?api-key=579b464db66ec23bdd0000016eba3f7ab943440a58806c6dc80f6b44&format=json&filters[State]={{ $('Edit Fields1').item.json.State }}&filters[District]={{ $json.district_array }}&filters[Commodity]={{ $('Edit Fields1').item.json.Crop_name }}&sort[Arrival_Date]=desc&limit=2000",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        144,
+        -656
+      ],
+      "id": "081fa8c4-291e-4eb6-919e-29640fc725b0",
+      "name": "all mondies"
+    },
+    {
+      "parameters": {
+        "url": "=https://nominatim.openstreetmap.org/search?q={{ $json.Market.replace(\" APMC\", \"\").replace(\"APMC\", \"\").trim() }}, {{ $json.District }}, {{ $json.State }}, India&format=json&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "KisanMandiBot/1.0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        480,
+        -256
+      ],
+      "id": "77b82ba5-d0ef-4cd5-bf60-31ad9c6d4199",
+      "name": "Geocoding Mandis",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Pichle node (Filter Latest Prices) se saara Mandi ka data ek list mein nikalna\nconst mandiItems = $('filter_latest_dates').all(); \n\n// 2. HTTP Request node se aaya hua naya Geocoding (Lat/Lon) ka saara data\nconst geoItems = $input.all(); \n\nlet finalOutput = [];\n\n// 3. Dono lists ko ek saath loop karte hain taaki data match ho jaye\nfor (let i = 0; i < geoItems.length; i++) {\n    \n    // Check karte hain ki us index par pichla Mandi data majood hai ya nahi\n    let mandiData = mandiItems[i] ? mandiItems[i].json : {};\n    let geoResult = geoItems[i].json;\n\n    let lat = 0;\n    let lon = 0;\n\n    // 4. Lat/Lon nikalne ka sahi logic (Array bug fixed)\n    if (Array.isArray(geoResult) && geoResult.length > 0) {\n        // Agar data array ke andar hai, toh pehle element [0] se uthana padega\n        lat = parseFloat(geoResult[0].lat || 0); \n        lon = parseFloat(geoResult[0].long || 0);\n    } else if (geoResult.lat && geoResult.lon) {\n        // Agar seedha object hai\n        lat = parseFloat(geoResult.lat || 0);\n        lon = parseFloat(geoResult.lon || 0);\n    }\n\n    // 5. Purane Mandi data aur naye Lat/Lon ko jod kar naya result banana\n    finalOutput.push({\n        json: {\n            State: mandiData.State,\n            District: mandiData.District,\n            Market: mandiData.Market,\n            Commodity: mandiData.Commodity,\n            Arrival_Date: mandiData.Arrival_Date,\n            Modal_Price: mandiData.Modal_Price,\n            Min_Price: mandiData.Min_Price,\n            Max_Price: mandiData.Max_Price,\n            Mandi_Lat: lat,\n            Mandi_Lon: lon\n        }\n    });\n}\n\n// 6. Final merged data ko output kar dena\nreturn finalOutput;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        592,
+        -656
+      ],
+      "id": "2ab0c44d-95f1-4eb1-8953-1ef037ed1a56",
+      "name": "Attach Coordinates"
+    },
+    {
+      "parameters": {
+        "jsCode": "  // 1. Sabhi 5 districts ke hazaron records ko ek badi list mein ikattha karna\n  let allRecords = [];\n  \n  for (const item of $input.all()) {\n      // Check karte hain ki kya API ne sach mein 'records' bheje hain\n      if (item.json.records && item.json.records.length > 0) {\n          // Un sabko hamari ek master list mein jod do\n          allRecords = allRecords.concat(item.json.records);\n      }\n  }\n  \n  // 2. Humein sirf Unique Mandis ka LATEST bhav chahiye\n  let uniqueMandis = {};\n  let finalCleanMandis = [];\n  \n  // API ka data pehle se hi 'desc' (ultex kram) mein sort hokar aaya hai.\n  // Iska matlab list mein jo mandi pehli baar dikhegi, wahi uska sabse latest bhav hoga!\n  for (const record of allRecords) {\n      let marketName = record.Market;\n      \n      // Agar ye mandi pehli baar dikhi hai aur iska Modal_Price 0 nahi hai\n      if (!uniqueMandis[marketName] && record.Modal_Price && record.Modal_Price > 0) {\n          \n          // Is mandi ko 'dekh liya gaya hai' aisi list mein daal do taaki iska purana data ignore ho jaye\n          uniqueMandis[marketName] = true;\n          \n          // Is fresh data ko n8n ke 'json' dabbe mein pack karke aage bhej do\n          finalCleanMandis.push({\n              json: {\n                  State: record.State,\n                  District: record.District,\n                  Market: marketName,\n                  Commodity: record.Commodity,\n                  Arrival_Date: record.Arrival_Date,\n                  Modal_Price: parseFloat(record.Modal_Price), // Ise number bana diya taaki aage math ho sake\n                  Min_Price: record.Min_Price,\n                  Max_Price: record.Max_Price\n              }\n          });\n      }\n  }\n  \n  // 3. Ye clean 15-20 mandiyon ki list agle node ko pass kar do\n  return finalCleanMandis;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        272,
+        -240
+      ],
+      "id": "f6f4f364-2b91-4f45-8337-52d6805abffb",
+      "name": "Filter Latest Prices"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. INPUTS node se kisan ki location aur quantity uthao\nconst inputData = $('Edit Fields1').first().json;\n\n// Number() का इस्तेमाल करो। यह स्ट्रिंग को नंबर में बदल देगा और अगर पहले से नंबर है तो एरर नहीं देगा।\nconst userLat = Number(inputData.lat);\nconst userLon = Number(inputData.long);\nconst cropQuantity = inputData.cropQuantity ? Number(inputData.cropQuantity) : 100; \n\n// 2. Distance nikalne ka formula (Haversine Formula - in KM)\nfunction getDistance(lat1, lon1, lat2, lon2) {\n  const R = 6371; // Earth radius\n  const dLat = (lat2 - lat1) * (Math.PI / 180);\n  const dLon = (lon2 - lon1) * (Math.PI / 180);\n  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +\n            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *\n            Math.sin(dLon / 2) * Math.sin(dLon / 2);\n  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));\n  return R * c;\n}\n\nlet scoredMandis = [];\n\n// 3. Har mandi ka Kiraya aur Munafa nikalna\nfor (const item of $input.all()) {\n    const mandi = item.json;\n    \n    // Agar location theek se aayi hai tabhi math karo\n    if(mandi.Mandi_Lat && mandi.Mandi_Lon && mandi.Mandi_Lat !== 0) {\n        \n        // Doori nikalo\n        const distanceKM = getDistance(userLat, userLon, mandi.Mandi_Lat, mandi.Mandi_Lon);\n        \n        // Transport Cost (Maan lo 1 quintal ko 1 KM le jane ka ₹3 lagta hai)\n        const transportCostPerQuintal = distanceKM * 3; \n        \n        // Asli Bhav (Bhav minus Kiraya)\n        const effectivePrice = mandi.Modal_Price - transportCostPerQuintal;\n        \n        // Total Asli Munafa\n        const totalProfit = effectivePrice * cropQuantity;\n\n        scoredMandis.push({\n            json: {\n                ...mandi, \n                Distance_KM: parseFloat(distanceKM.toFixed(2)),\n                Transport_Cost_Per_Q: parseFloat(transportCostPerQuintal.toFixed(2)),\n                Effective_Price: parseFloat(effectivePrice.toFixed(2)),\n                Total_Estimated_Profit: parseFloat(totalProfit.toFixed(2))\n            }\n        });\n    }\n}\n\n// 4. Sabhi calculated items aage bhej do\nreturn scoredMandis;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        -224
+      ],
+      "id": "343938c4-6588-44a5-b9b0-0ace4bfa333c",
+      "name": "Calculate Profit & Score"
+    },
+    {
+      "parameters": {
+        "jsCode": "// N8n se input items get karna\nconst items = $input.all();\n\n// N8n ke {json: ...} structure se apna original data array nikalna\nconst data = items.map(item => item.json);\n\n// Date ko 'DD/MM/YYYY' format se JavaScript Date object me badalne ka function\nfunction parseDate(dateStr) {\n    if (!dateStr) return new Date(0);\n    const parts = dateStr.split('/');\n    if (parts.length === 3) {\n        // Javascript me month 0 se start hota hai, isliye parts[1] - 1 kiya hai\n        return new Date(parts[2], parts[1] - 1, parts[0]);\n    }\n    return new Date(0);\n}\n\n// Step 1: Data me majood sabse latest date dhundhna\nlet latestDate = new Date(0);\ndata.forEach(row => {\n    if (row.Arrival_Date) {\n        let currentDate = parseDate(row.Arrival_Date);\n        if (currentDate > latestDate) {\n            latestDate = currentDate;\n        }\n    }\n});\n\n// Step 2: Latest date se 30 din pehle ki (cutoff) date calculate karna\nlet cutoffDate = new Date(latestDate);\ncutoffDate.setDate(cutoffDate.getDate() - 30);\n\n// Step 3: Sirf unhi records ko filter karna jo latest date aur 30 din pehle ki date ke beech ke hain\nconst filteredData = data.filter(row => {\n    if (!row.Arrival_Date) return false;\n    let rowDate = parseDate(row.Arrival_Date);\n    // Row ki date cutoff date se badi ya barabar honi chahiye\n    return rowDate >= cutoffDate && rowDate <= latestDate;\n});\n\n// Step 4: Filter kiye hue data ko wapas n8n ke format mein convert karke return karna\nreturn filteredData.map(row => {\n    return {\n        json: row\n    };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -656
+      ],
+      "id": "871b0dff-7aa6-4c5d-bded-dc14e1d7e9ff",
+      "name": "filter_latest_dates"
+    },
+    {
+      "parameters": {
+        "sortFieldsUi": {
+          "sortField": [
+            {
+              "fieldName": "Total_Estimated_Profit",
+              "order": "descending"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.sort",
+      "typeVersion": 1,
+      "position": [
+        800,
+        -640
+      ],
+      "id": "94d9da2c-30cc-4732-968a-da01283e7ef1",
+      "name": "Sort"
+    },
+    {
+      "parameters": {
+        "maxItems": 10
+      },
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        976,
+        -496
+      ],
+      "id": "5b96d52b-c2a6-4385-bc90-25f592cb9cf2",
+      "name": "Limit"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $input.all().map(item => item.json) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1488,
+        -496
+      ],
+      "id": "87660301-1956-4f16-8e9e-dff7cdffa0e4",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "markate_timing",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -816,
+        -304
+      ],
+      "id": "c5503773-6239-4816-9181-6621c985072d",
+      "name": "Webhook",
+      "webhookId": "5bff9514-6f55-4459-a5b2-f4a6d5e46a84"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a04f2fd2-2198-42bd-8db6-803597de7fe0",
+              "name": "lat",
+              "value": "={{ $json.body.lat }}",
+              "type": "number"
+            },
+            {
+              "id": "f1cf1a70-b991-48ff-816a-0ce027e7c99d",
+              "name": "long",
+              "value": "={{ $json.body.long }}",
+              "type": "number"
+            },
+            {
+              "id": "44e8877e-2393-4e7e-8d6c-ccf1ab6fb18a",
+              "name": "State",
+              "value": "={{ $json.body.State }}",
+              "type": "string"
+            },
+            {
+              "id": "4944a587-4397-416d-9efa-59b1db160601",
+              "name": "Crop_name",
+              "value": "={{ $json.body.Crop_name }}",
+              "type": "string"
+            },
+            {
+              "id": "6e7fb9c6-47df-4e45-86ba-d2544cd1ef67",
+              "name": "District",
+              "value": "={{ $json.body.District }}",
+              "type": "string"
+            },
+            {
+              "id": "7f7498f5-efc1-4fff-9ed1-f63802687bc8",
+              "name": "cropQuantity",
+              "value": "={{ $json.body.cropQuantity }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -624,
+        -304
+      ],
+      "id": "b9acdf69-df65-4e79-aae7-5bced40e498e",
+      "name": "Edit Fields1"
+    }
+  ],
+  "connections": {
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "all mondies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "all mondies": {
+      "main": [
+        [
+          {
+            "node": "Filter Latest Prices",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geocoding Mandis": {
+      "main": [
+        [
+          {
+            "node": "Attach Coordinates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Latest Prices": {
+      "main": [
+        [
+          {
+            "node": "filter_latest_dates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Coordinates": {
+      "main": [
+        [
+          {
+            "node": "Calculate Profit & Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Profit & Score": {
+      "main": [
+        [
+          {
+            "node": "Sort",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filter_latest_dates": {
+      "main": [
+        [
+          {
+            "node": "Geocoding Mandis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sort": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

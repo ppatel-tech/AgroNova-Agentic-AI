@@ -1,0 +1,662 @@
+{
+  "name": "AI Crop Recommendation Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "crop-agent",
+        "responseMode": "lastNode",
+        "responseData": "allEntries",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -208,
+        -16
+      ],
+      "id": "e2f6d429-78eb-429e-af96-7fba01841a7f",
+      "name": "Webhook",
+      "webhookId": "da1962d2-151b-4139-ad34-0e142d709147"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "4388f991-7717-464d-a593-ad0580c42eec",
+              "name": "soilType",
+              "value": "={{ $('Webhook').item.json.body.soilType }}",
+              "type": "string"
+            },
+            {
+              "id": "f7992921-e4ac-4dda-967c-577e6b3554ad",
+              "name": "location",
+              "value": "={{ $('Webhook').item.json.body.location }}",
+              "type": "string"
+            },
+            {
+              "id": "7fe733c2-fdb3-48fa-b626-16d3150fc7f9",
+              "name": "date",
+              "value": "={{ $('Webhook').item.json.body.date }}",
+              "type": "string"
+            },
+            {
+              "id": "06e668d1-da7d-47fb-accc-6a4260b2a6ed",
+              "name": "farmArea",
+              "value": "={{ $('Webhook').item.json.body.farmArea }}",
+              "type": "number"
+            },
+            {
+              "id": "33a42c07-6cd1-4f15-8c06-0ad34b591234",
+              "name": "previousCrop",
+              "value": "={{ $('Webhook').item.json.body.previousCrop }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        640,
+        80
+      ],
+      "id": "4f8e2ae3-923d-4bee-b2ac-fb47b5456e06",
+      "name": "Manual Flow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3254fe79-187f-404a-be32-81a0c39df178",
+              "name": "rawText",
+              "value": "={{ $json.choices[0].message.content }}",
+              "type": "string"
+            },
+            {
+              "id": "4b4a6287-719c-4032-8dc2-9821ce2db6d3",
+              "name": "finalData",
+              "value": "={{ (() => {\n  try {\n\n    // Phi-4 / OpenAI style response\n    let text =\n      $json.choices?.[0]?.message?.content ||\n      $json.message?.content ||\n      \"\";\n\n    // markdown cleanup\n    text = text\n      .replace(/```json/g, \"\")\n      .replace(/```/g, \"\")\n      .trim();\n\n    // double encoded json handle\n    if (typeof text === \"string\") {\n      try {\n        return JSON.parse(text);\n      } catch {\n        return JSON.parse(JSON.parse(text));\n      }\n    }\n\n    return text;\n\n  } catch (e) {\n\n    return {\n      error: \"Invalid JSON from model\",\n      raw: $json\n    };\n\n  }\n})() }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1472,
+        80
+      ],
+      "id": "a5b690a5-0d92-4fb8-81cf-5ecf6477d4e6",
+      "name": "Gemini parser"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "=\n{{ $json.rawText }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1648,
+        80
+      ],
+      "id": "bcdf3710-43a8-4050-844e-a1e3787e8e80",
+      "name": "Final Output"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.openweathermap.org/data/2.5/weather?q={{$json.location.split(',')[0]}},IN&appid=66ef7b7415688fb4fbe649deaf1122b0&units=metric",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        848,
+        80
+      ],
+      "id": "40871b25-e2ab-4a54-83e2-dc3610f2c802",
+      "name": "Weather api response"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash-lite"
+        },
+        "text": "Analyze this soil report image and extract ONLY the following values:\n\n\nif the OCR image is not valid ocr image then just return an error message  i json formate \n\n\"\n\"isValidOCR\" : false\n \" \ndont return anything. \n\n\nif values found return those valies like this formate\n\n- pH\n- Nitrogen (N)\n- Phosphorus (P)\n- Potassium (K)\n- Electrical Conductivity (EC)\n- Moisture\n\nReturn output strictly in JSON format like this:\nDo not include any explanation.",
+        "inputType": "binary",
+        "binaryPropertyName": "image",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        640,
+        -128
+      ],
+      "id": "99f7665c-3fef-4095-86e2-ccfa2f5986ed",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $('parser').item.json.location }}"
+            },
+            {
+              "name": "appid",
+              "value": "66ef7b7415688fb4fbe649deaf1122b0"
+            },
+            {
+              "name": "units",
+              "value": "metric"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1056,
+        -128
+      ],
+      "id": "48499cdc-3abd-457a-8350-beb9eb1de7a5",
+      "name": "Weather details"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cccee1dc-9e0b-4686-8491-28f6b47e9b6c",
+              "name": "temprature",
+              "value": "={{ $json.main.temp }}",
+              "type": "number"
+            },
+            {
+              "id": "266c3b47-78ac-4057-90bb-435e1659d623",
+              "name": "humidity",
+              "value": "={{ $json.main.humidity }}",
+              "type": "number"
+            },
+            {
+              "id": "eb12cefb-8444-4b31-8972-811437c4cd54",
+              "name": "weather_condition",
+              "value": "={{ $json.weather[0].description }}",
+              "type": "string"
+            },
+            {
+              "id": "dbe0cdb9-9e7d-4a26-9a1a-c030e0e9a24f",
+              "name": "location",
+              "value": "={{ $('parser').item.json.location }}",
+              "type": "string"
+            },
+            {
+              "id": "20f066d6-fe90-44cd-b249-e1fe2d34f834",
+              "name": "date",
+              "value": "={{ $('parser').item.json.date }}",
+              "type": "string"
+            },
+            {
+              "id": "a2aec993-0f87-46d1-8b3d-49d9ddb82a22",
+              "name": "farmArea",
+              "value": "={{ $('parser').item.json.farmArea }}",
+              "type": "string"
+            },
+            {
+              "id": "461da0c3-82b0-4bef-9f73-ded86059651d",
+              "name": "previousCrop",
+              "value": "={{ $('parser').item.json.previousCrop }}",
+              "type": "string"
+            },
+            {
+              "id": "5fdd1c7f-0fc1-43ae-9437-51f27f0561e0",
+              "name": "=ocr_data",
+              "value": "={{\n(() => {\n  const raw = $('OCR data &  inputs').item.json.ocr_data\n    .replace(/```json/gi, '')\n    .replace(/```/gi, '');\n\n  const parsed = JSON.parse(raw);\n\n  return Array.isArray(parsed) ? parsed : [parsed];\n})()\n}}",
+              "type": "array"
+            },
+            {
+              "id": "36450afd-6d0e-4259-9851-26a5d962d953",
+              "name": "",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1264,
+        -128
+      ],
+      "id": "106c750e-8137-408e-aa78-e4c67de78438",
+      "name": "complete data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "66ad6608-0b21-42e2-8e61-734fd31823aa",
+              "name": "ocr_data",
+              "value": "={{ $json.content.parts[0].text }}",
+              "type": "string"
+            },
+            {
+              "id": "793e3de9-cc61-4124-971f-86fbb0a14b7d",
+              "name": "date",
+              "value": "={{ $('parser').item.json.date }}",
+              "type": "string"
+            },
+            {
+              "id": "53ecd4f7-fd35-47a8-a6b9-673f55fe4c1a",
+              "name": "farmArea",
+              "value": "={{ $('parser').item.json.farmArea }}",
+              "type": "string"
+            },
+            {
+              "id": "af230ab6-3376-4062-94cb-e8af7f7104b9",
+              "name": "location",
+              "value": "={{ $('parser').item.json.location }}",
+              "type": "string"
+            },
+            {
+              "id": "68e20391-69f5-4613-ae5e-543298323c2f",
+              "name": "previousCrop",
+              "value": "={{ $('parser').item.json.previousCrop }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        848,
+        -128
+      ],
+      "id": "71d20796-fb4e-47bb-a987-600da8d2acef",
+      "name": "OCR data &  inputs"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBFnCUCLmThPD7DSjajlnaK4iN_xL1SBF8",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"You are an AI-powered agricultural expert specializing in crop recommendation, farm planning, and yield optimization.\\n\\n-----------------------------------\\n🎯 OBJECTIVE\\n-----------------------------------\\nRecommend exactly 5 crops from the predefined list based strictly on the provided structured input data and OCR-extracted farm report.\\n\\n-----------------------------------\\n📥 INPUT DATA\\n-----------------------------------\\ntemperature: {{ $json.temprature }}\\nhumidity: {{ $json.humidity }}\\nweather_condition: {{ $json.weather_condition }}\\nlocation: {{ $json.location }}\\ndate: {{ $json.date }}\\nfarmArea: {{ $json.farmArea }}\\npreviousCrop: {{ $json.previousCrop }}\\nocr_data: {{ $json.ocr_data }}\\n\\n-----------------------------------\\n🌾 ALLOWED CROPS (ONLY CHOOSE FROM THESE)\\n-----------------------------------\\nWheat (गेहूं)\\nRice (धान / चावल)\\nMaize (मक्का)\\nBajra (बाजरा)\\nJowar (ज्वार)\\nChana (चना)\\nArhar / Toor (अरहर)\\nSoybean (सोयाबीन)\\nGroundnut (मूंगफली)\\nMustard (सरसों)\\nCotton (कपास)\\nSugarcane (गन्ना)\\nTomato (टमाटर)\\nPotato (आलू)\\nOnion (प्याज)\\nChilli (मिर्च)\\nCabbage (पत्ता गोभी)\\nCauliflower (फूलगोभी)\\nCucumber (खीरा)\\nBanana (केला)\\nMango (आम)\\nPapaya (पपीता)\\nWatermelon (तरबूज)\\nMuskmelon (खरबूजा)\\nCoconut (नारियल)\\n\\n🚫 Do NOT recommend any crop outside this list.\\n\\n-----------------------------------\\n🧠 LOGIC RULES\\n-----------------------------------\\n1. Season Awareness:\\n- Analyze the DATE carefully.\\n- Recommend only crops suitable for that specific season/month.\\n- Example: Do NOT recommend Wheat in June (Kharif season).\\n\\n2. Weather Matching:\\n- Match crops with temperature, humidity, and weather conditions.\\n\\n3. Soil Consideration (from OCR data):\\n- pH: 6.7 (Optimal)\\n- Nitrogen: Low\\n- Phosphorus: Low\\n- Potassium: High\\n- Organic Carbon: Medium\\n- Moisture: Normal\\n- Prefer crops tolerant to low nitrogen & phosphorus or suitable for soil improvement.\\n\\n4. Crop Rotation:\\n- Previous crop: Wheat\\n- Avoid wheat or similar heavy nutrient crops immediately again.\\n- Prefer legumes or rotation-friendly crops.\\n\\n-----------------------------------\\n📊 OUTPUT REQUIREMENTS\\n-----------------------------------\\nReturn EXACTLY 5 crop recommendations.\\n\\nFor EACH crop, provide:\\n1. Crop Name (Hindi + English)\\n2. Short Reason (max 2 lines, farmer-friendly, practical)\\n3. Estimated Profit (₹ per acre)\\n4. Seed Quantity Required (based on farmArea = 3 acres)\\n\\n-----------------------------------\\n⚠️ STRICT RULES\\n-----------------------------------\\n- Do NOT give vague answers\\n- Do NOT exceed 5 crops\\n- Do NOT include crops outside the list\\n- Keep reasons practical and realistic\\n- Ensure season accuracy (June = Kharif season in MP)\\n- Ensure values are realistic (no extreme numbers)\\n\\n-----------------------------------\\n📤 OUTPUT FORMAT (JSON ONLY)\\n-----------------------------------\\n{\\n  \\\"crops\\\": [\\n    {\\n      \\\"crop\\\": \\\"Crop Name (Hindi + English)\\\",\\n      \\\"reason\\\": \\\"Short practical reason\\\",\\n      \\\"estimated_profit_per_acre\\\": \\\"₹XXXX - ₹XXXX\\\",\\n      \\\"seed_quantity\\\": \\\"XX kg\\\"\\n    }\\n  ]\\n}\\n\\n-----------------------------------\\n📝 FINAL NOTE\\n-----------------------------------\\nThis is a real farmer use case. Recommendations must be seasonally correct (Kharif crops), agronomically sound, and economically realistic for central India conditions.the whole response should be in hindi \"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1472,
+        -128
+      ],
+      "id": "20209ef5-4034-48c1-85d0-181bacd442da",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "=\n {{ $json.candidates[0].content.parts[0].text }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1648,
+        -128
+      ],
+      "id": "4af48087-4041-4b5c-bab9-286009f0c1e9",
+      "name": "final output"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c6453000-1286-476d-8684-2c3e91bea302",
+              "leftValue": "={{$binary.image}}",
+              "rightValue": "multipart",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        304,
+        -16
+      ],
+      "id": "4910ba44-6274-4938-b5ab-bdfb2564ce62",
+      "name": "If",
+      "notesInFlow": false,
+      "retryOnFail": false,
+      "executeOnce": false,
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f35289ae-cad2-4916-888e-1abe73a46cc5",
+              "name": "temperature",
+              "value": "={{ $json.main.temp }}",
+              "type": "number"
+            },
+            {
+              "id": "b718ace9-5442-4f63-8afe-43177c5400cb",
+              "name": "humidity",
+              "value": "={{ $json.main.humidity }}",
+              "type": "number"
+            },
+            {
+              "id": "7e45f502-c701-40ed-b6fa-04ebd74a6c41",
+              "name": "weatherCondition",
+              "value": "={{ $json.weather[0].description }}",
+              "type": "string"
+            },
+            {
+              "id": "f4efefd4-ad9e-4293-bcc6-f10661afc81f",
+              "name": "soilType",
+              "value": "={{$node[\"Manual Flow\"].json.soilType}}",
+              "type": "string"
+            },
+            {
+              "id": "1c4f22d4-a71f-4cbd-b22d-3c95acf10e2d",
+              "name": "location",
+              "value": "={{$node[\"Manual Flow\"].json.location}}",
+              "type": "string"
+            },
+            {
+              "id": "4059ece5-5653-4153-842b-4dfbee957962",
+              "name": "date",
+              "value": "={{$node[\"Manual Flow\"].json.date}}",
+              "type": "string"
+            },
+            {
+              "id": "1de38b09-6294-409f-834f-11f62ddcaa56",
+              "name": "farmArea",
+              "value": "={{$node[\"Manual Flow\"].json.farmArea}}",
+              "type": "string"
+            },
+            {
+              "id": "99838dc7-08c7-4b79-b02c-75f6041b02a7",
+              "name": "previousCrop",
+              "value": "={{ $('Webhook').item.json.body.previousCrop }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1056,
+        80
+      ],
+      "id": "7008dc74-1a46-4f65-b886-2ed526afe43c",
+      "name": "complete data1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\n\ntry {\n\n  // binary buffer directly read karo\n  const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n\n  // utf8 string\n  let jsonString = buffer.toString('utf8');\n\n  // cleanup\n  jsonString = jsonString\n    .replace(/^\\uFEFF/, '')\n    .trim();\n\n  // debug\n  console.log(jsonString);\n\n  // parse\n  const parsedData = JSON.parse(jsonString);\n\n  // extra binaries preserve\n  const binaries = {};\n\n  for (const key of Object.keys(item.binary || {})) {\n    if (key !== 'data') {\n      binaries[key] = item.binary[key];\n    }\n  }\n\n  return [\n    {\n      json: parsedData,\n      binary: binaries,\n    }\n  ];\n\n} catch (error) {\n\n  return [\n    {\n      json: {\n        success: false,\n        error: error.message,\n      }\n    }\n  ];\n\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -16
+      ],
+      "id": "666fb51c-a50f-4801-9753-988548bac2bb",
+      "name": "parser"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://models.inference.ai.azure.com/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_API_KEY(removed because of Security reasons)"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"phi-4\",\n  \"messages\": [\n    {\n      \"role\": \"user\",\n      \"content\": \"You are an AI-powered agricultural expert specializing in crop recommendation, farm planning, and yield optimization.\\n\\nYour task is to recommend the best crops based strictly on the provided structured input data and OCR-extracted farm report.\\n\\n-----------------------------------\\n🎯 OBJECTIVE\\n-----------------------------------\\nRecommend exactly 5 crops from the predefined list of 25 crops based on:\\n- Weather conditions\\n- Soil data (from OCR if available)\\n- Date (seasonality must be accurate)\\n- Location\\n- Farm area\\n- Previous crop\\n\\n-----------------------------------\\n📥 INPUT DATA\\n-----------------------------------\\ntemperature: 35.62\\nhumidity: 13\\nweatherCondition: clear sky\\nsoilType: sandy soil\\nlocation: Jaipur\\ndate: 2026-10-15\\nfarmArea: 3\\npreviousCrop: wheat\\n\\n-----------------------------------\\n🌾 ALLOWED CROPS (ONLY CHOOSE FROM THESE)\\n-----------------------------------\\nWheat (गेहूं)\\nRice (धान / चावल)\\nMaize (मक्का)\\nBajra (बाजरा)\\nJowar (ज्वार)\\nChana (चना)\\nArhar / Toor (अरहर)\\nSoybean (सोयाबीन)\\nGroundnut (मूंगफली)\\nMustard (सरसों)\\nCotton (कपास)\\nSugarcane (गन्ना)\\nTomato (टमाटर)\\nPotato (आलू)\\nOnion (प्याज)\\nChilli (मिर्च)\\nCabbage (पत्ता गोभी)\\nCauliflower (फूलगोभी)\\nCucumber (खीरा)\\nBanana (केला)\\nMango (आम)\\nPapaya (पपीता)\\nWatermelon (तरबूज)\\nMuskmelon (खरबूजा)\\nCoconut (नारियल)\\n\\n🚫 Do NOT recommend any crop outside this list.\\n\\n-----------------------------------\\n🧠 LOGIC RULES\\n-----------------------------------\\n1. Season Awareness:\\n   - Analyze the DATE carefully.\\n   - Extract month and match with Indian crop seasons (Kharif, Rabi, Zaid, perennial).\\n   - Do NOT recommend crops in the wrong season (e.g., Cotton in November, Wheat in July).\\n\\n2. Weather Matching:\\n   - Match crops with temperature, humidity, and weather conditions.\\n   - Avoid crops sensitive to extreme weather.\\n\\n3. Soil Consideration:\\n   - Use soilType and OCR data if available.\\n   - Consider pH, nutrients, and soil suitability.\\n\\n4. Crop Rotation:\\n   - Use previousCrop.\\n   - Avoid same or related family crops consecutively.\\n\\n-----------------------------------\\n📊 OUTPUT REQUIREMENTS\\n-----------------------------------\\nReturn EXACTLY 5 crop recommendations.\\n\\nFor EACH crop, provide:\\n1. Crop Name (Hindi + English)\\n2. Short Reason (max 2 lines, simple, farmer-friendly, practical)\\n3. Estimated Profit (₹ per acre)\\n4. Seed Quantity Required (in kg based on farmArea)\\n\\n-----------------------------------\\n⚠️ STRICT RULES\\n-----------------------------------\\n- Do NOT give vague or generic answers\\n- Do NOT exceed 5 crops\\n- Do NOT include crops outside the list\\n- Do NOT give overly long explanations\\n- Ensure recommendations are practical and realistic\\n- Ensure values are realistic (no extreme numbers)\\n\\n-----------------------------------\\n📤 OUTPUT FORMAT (JSON ONLY)\\n-----------------------------------\\nReturn ONLY raw JSON.\\nDo NOT wrap response inside any key like \\\"final_recommendation\\\".\\nDo NOT return an array.\\n\\n{\\n  \\\"crops\\\": [\\n    {\\n      \\\"crop\\\": \\\"Crop Name (Hindi + English)\\\",\\n      \\\"reason\\\": \\\"Short practical reason\\\",\\n      \\\"estimated_profit_per_acre\\\": \\\"₹XXXX - ₹XXXX\\\",\\n      \\\"seed_quantity\\\": \\\"XX kg\\\"\\n    }\\n  ]\\n}\\n\\n-----------------------------------\\n📝 FINAL NOTE\\n-----------------------------------\\nBase all recommendations strictly on input data. Ensure seasonal accuracy, agronomic correctness, and realistic economics for Indian farming conditions. everything should be in hindi all the responses should be in hindi\"\n    }\n  ],\n  \"temperature\": 0.7\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1264,
+        80
+      ],
+      "id": "d26bc209-2335-4c0a-8ce3-429286f021f4",
+      "name": "Azure api"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Flow": {
+      "main": [
+        [
+          {
+            "node": "Weather api response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini parser": {
+      "main": [
+        [
+          {
+            "node": "Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weather api response": {
+      "main": [
+        [
+          {
+            "node": "complete data1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Final Output": {
+      "main": [
+        []
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "OCR data &  inputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weather details": {
+      "main": [
+        [
+          {
+            "node": "complete data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OCR data &  inputs": {
+      "main": [
+        [
+          {
+            "node": "Weather details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "complete data": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "final output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Manual Flow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "complete data1": {
+      "main": [
+        [
+          {
+            "node": "Azure api",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Azure api": {
+      "main": [
+        [
+          {
+            "node": "Gemini parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

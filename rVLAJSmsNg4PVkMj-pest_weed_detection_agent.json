@@ -1,0 +1,480 @@
+{
+  "name": "pest & weed detection agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pest-weed-agent",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "91edff70-f3eb-4e5d-8e06-49037e7d4f6e",
+      "name": "Webhook",
+      "webhookId": "a5a15e81-2475-4ac1-9c09-9e0c170e005a"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "40cf901b-138a-4b3d-bd73-0d12de314063",
+              "leftValue": "={{ $json.body.isPest.toString() }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        208,
+        0
+      ],
+      "id": "02d84be0-0f44-4904-8a36-d1eaba991286",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash-lite"
+        },
+        "text": "=You are an expert agricultural scientist and plant pathologist with strong knowledge of Indian farming conditions.\n\nAnalyze the given crop image carefully.\n\nContext:\n\nCrop Name: {{ $json.body.cropName }}\nCrop Stage: {{ $json.body.cropStage }}\nSeverity: {{ $json.body.severity }}\nTreatment Preference:{{ $json.body.severity }} (organic/chemical)\n\nYour Tasks:\n\nIdentify the pest (common in India if symptoms match).\nGive a short and precise reason (max 1–2 lines, symptom-based only).\nSuggest EXACTLY 8 treatments based on user preference.\n\nRules:\nkeep everything in normal hindi\nIf no pest is found, return \"pestName\": \"No Pest Detected\".\nPrefer pests commonly found in India when symptoms are similar.\nKeep the reason short, clear, and symptom-focused.\nTreatments must strictly match the selected type (organic/chemical).\nAvoid generic advice.\n\nTreatment Format (VERY IMPORTANT):\n\nEach treatment must clearly include:\n\nSolution Name\nExact Action (how to use it)\n\nFormat like:\n\"Solution Name – Action (dose, method, timing if possible)\"\n\nExample:\n\"Neem Oil (Organic) – Spray 3 ml per liter of water every 7 days on affected leaves\"\n\nOutput Format (STRICT JSON ONLY):\n\n{\n  \"pestName\": \"\",\n  \"reason\": \"\",\n  \"suggestedTreatments\": [\n    \"\",\n    \"\",\n    \"\",\n    \"\",\n    \"\",\n    \"\",\n    \"\",\n    \"\"\n  ]\n}",
+        "inputType": "binary",
+        "binaryPropertyName": "image",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        -192
+      ],
+      "id": "37a9666d-433d-4f18-ad1f-eedc02c25405",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0cc45477-e8f2-4f9a-a229-a242ae32d31b",
+              "name": "cleanData",
+              "value": "={{ JSON.parse($json.content.parts[0].text.replace(/```json|```/g, '').trim()) }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        688,
+        -192
+      ],
+      "id": "e0dd008e-7228-49df-b0e5-cc1d90608e34",
+      "name": "cleanData"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3-flash-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3-flash-preview"
+        },
+        "text": "=You are an agricultural expert AI.\n\nAnalyze the given image and identify the weed present. Then generate a structured response based on the following inputs:\n\nInputs:\n- Crop Name: {{ $json.body.cropName }}\n- Crop Stage: {{ $json.body.cropStage }}\n- Weed Severity: {{ $json.body.severity }}\n- Location: {{ $json.body.location }}\n\nInstructions:\n1. Detect the weed type from the image (distinguish clearly between crop and weed).\n2. If not confident, return \"unknown\" as weedType.\n3. Consider crop type, growth stage, severity, and local conditions.\n4. Recommend safe, crop-selective treatments only.\n\nOutput format (STRICT JSON ONLY, no explanation, no markdown):\n\n{\n  \"weedType\": \"\",\n  \"sprayTime\": \"\",\n  \"treatments\": []\n}\n\nRules:\n- it should give 2 treatments \n- weedType must be a specific weed name or \"unknown\".\n- sprayTime should include both crop stage timing + time of day if relevant( give in only few words).\n- treatments: exectly 2 items, each must include (name + usage).\n- Only include treatments that are SAFE for the given crop and stage.\n- If only one good treatment exists, return only one item.\n- Do NOT guess unsafe or harmful chemicals.\n- Ensure output is valid JSON (no trailing commas, no extra text).\n- keep eveything in hindi, make sure",
+        "inputType": "binary",
+        "binaryPropertyName": "image",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        496,
+        96
+      ],
+      "id": "8bd50223-621a-44f7-8f98-c1e7180a58da",
+      "name": "Analyze an image1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert agricultural advisor.\n\nYou are given:\n- crop : {{ $('Webhook').item.json.body.cropName }}\n- Pest Name: {{ $json.cleanData.pestName }}\n- Severity: {{ $('Webhook').item.json.body.severity }}\n- Crop Stage: {{ $('Webhook').item.json.body.cropStage }}\n- farmArea : {{ $('Webhook').item.json.body.farmArea }}\n\nHere are 8 suggested treatments:\n{{ JSON.stringify($json.cleanData.suggestedTreatments) }}\n\nYour task:\n1. Analyze all 8 treatments carefully.\n2. Select the BEST 4 treatments based on:\n   - Effectiveness\n   - Suitability for crop stage\n   - Severity level\n   - Practical usage in real farming\n\n3. Additionally, recommend 3 BEST pesticides specifically for:\n   - Improving crop recovery and health\n   - Controlling the given pest effectively\n   - Suitability based on crop, crop stage, and severity\n\nRules:\n- DO NOT create new treatments for \"topTreatments\"\n- ONLY pick from the given list for treatments\n- Rank them from best to least best\n- For \"recommendedPesticides\", you CAN suggest the best pesticides based on your expertise\n- Keep recommendations practical and commonly used in real farming\n\nReturn ONLY raw JSON (no markdown):\n\n{\n  \"topTreatments\": [\n    \"\",\n    \"\",\n    \"\",\n    \"\"\n  ],\n  \"recommendedPesticides\": [\n    \"\",\n    \"\",\n    \"\"\n  ]\n}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        -192
+      ],
+      "id": "17380e3a-479f-45a2-87c5-eb594e20344f",
+      "name": "Message a model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1ae5bf07-fdb7-4842-84b8-653543aa1d26",
+              "name": "cleanData2",
+              "value": "={{ JSON.parse($json.content.parts[0].text) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1248,
+        -192
+      ],
+      "id": "998b3526-7ab1-41b2-a6ef-4ba4735fb82a",
+      "name": "cleanData2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b248a895-968e-4b90-830e-ce1bba765947",
+              "name": "topTreatments",
+              "value": "={{ JSON.parse($json.cleanData2).topTreatments }}",
+              "type": "array"
+            },
+            {
+              "id": "21954d71-df18-45b3-b3a4-2b469ea95e76",
+              "name": "recommendedPesticides",
+              "value": "={{ JSON.parse($json.cleanData2).recommendedPesticides }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1456,
+        -192
+      ],
+      "id": "146ffb26-074c-4b97-8748-98030ffdbce1",
+      "name": "cleanData3"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert agricultural advisor.\n\nYou are given:\n\npest name : \n{{ $('cleanData').item.json.cleanData.pestName }}\n\nreason : \n{{ $('cleanData').item.json.cleanData.reason }}\n\nTop Treatments (4):\n{{ JSON.stringify($json.topTreatments) }}\n\nRecommended Pesticides (3):\n{{ JSON.stringify($json.recommendedPesticides) }}\n\nYour task:\n\n1. From the 4 treatments, select the BEST 2 based on:\n   - Effectiveness\n   - Practical usage\n   - Faster recovery of crop\n\n2. From the 3 pesticides, select the BEST 2 based on:\n   - Crop recovery support\n   - Pest control strength\n   - Suitability for general farming use\n\nRules:\n- Do NOT create new items\n- Only pick from the given lists\n- Rank from best to second best\n- repond completly in hindi , everything should be in hindi\nReturn ONLY raw JSON:\n\n{ \n\"pestName\": \"\",\n\"reason\": \"\",\n  \"TopTreatments\": [\n    \"\",\n    \"\"\n  ],\n  \"RecommendedPesticides\": [\n    \"\",\n    \"\"\n  ]\n}"
+            }
+          ]
+        },
+        "jsonOutput": true,
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1680,
+        -192
+      ],
+      "id": "bba4a863-6eb7-45ca-868f-047466a7ce01",
+      "name": "Message a model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5cad7909-b1b4-44fc-bde3-721de7848ee5",
+              "name": "pestName",
+              "value": "={{ JSON.parse($json.content.parts[0].text).pestName }}",
+              "type": "string"
+            },
+            {
+              "id": "6954c5de-0483-44d2-a0f5-3cbca3356c2a",
+              "name": "reason",
+              "value": "={{ JSON.parse($json.content.parts[0].text).reason }}",
+              "type": "string"
+            },
+            {
+              "id": "b248a895-968e-4b90-830e-ce1bba765947",
+              "name": "topTreatments",
+              "value": "={{ JSON.parse($json.content.parts[0].text).TopTreatments }}",
+              "type": "array"
+            },
+            {
+              "id": "21954d71-df18-45b3-b3a4-2b469ea95e76",
+              "name": "recommendedPesticides",
+              "value": "={{ JSON.parse($json.content.parts[0].text).RecommendedPesticides }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1984,
+        -192
+      ],
+      "id": "b5b0281f-71ef-45b5-96b9-5170f252ad29",
+      "name": "final  required data"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        928,
+        96
+      ],
+      "id": "eb9cf9b2-9fec-4e00-bb6a-29dc7df62935",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2192,
+        -192
+      ],
+      "id": "aa943d5c-251e-415f-8920-d524a6c93da0",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Gemini se raw text string nikaalo\nlet rawText = $input.first().json.content.parts[0].text;\n\n// 2. Agar Gemini ne galti se ```json aur ``` laga diya hai, toh usko hatao (clean karo)\nlet cleanText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();\n\n// 3. Uss text ko ek ASLI JSON object me convert karo\nlet finalData = JSON.parse(cleanText);\n\n// 4. Data ko aage bhejo\nreturn finalData;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        96
+      ],
+      "id": "9e363fd5-91f0-4c8b-8236-091d597f6ed1",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Analyze an image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "cleanData",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cleanData": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "cleanData2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cleanData2": {
+      "main": [
+        [
+          {
+            "node": "cleanData3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cleanData3": {
+      "main": [
+        [
+          {
+            "node": "Message a model1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model1": {
+      "main": [
+        [
+          {
+            "node": "final  required data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "final  required data": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

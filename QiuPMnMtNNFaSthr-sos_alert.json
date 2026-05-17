@@ -1,0 +1,229 @@
+{
+  "name": "sos alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sos_alert",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "e0268e1e-248f-4874-82ed-2f6403c2ca6b",
+      "name": "Webhook",
+      "webhookId": "cfeb6444-50b6-4d37-9774-7dd7e07fc2f9"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nlet finalData = {};\n\n// 1. STRICT CHECK: Check karo ki 'data' naam ka binary object exist karta hai ya nahi\nif (item.binary && item.binary.data) {\n  // Scenario A: Data binary file me aaya hai\n  const binaryDataBuffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n  const jsonString = binaryDataBuffer.toString('utf-8');\n  finalData = JSON.parse(jsonString);\n} \n// 2. Agar binary nahi hai, toh check karo ki standard body aayi hai kya\nelse if (item.json && item.json.body) {\n  // Scenario B: Data normally JSON body me aaya hai\n  finalData = item.json.body;\n} \n// 3. Failsafe (Agar dono hi format nahi mile)\nelse {\n  finalData = item.json; \n}\n\n// 4. Saari binary fields collect karo (agar koi 'data' ke alawa images wagerah aayi hain)\nconst allBinaries = {};\nif (item.binary) {\n  for (const key of Object.keys(item.binary)) {\n    if (key !== 'data') {\n      allBinaries[key] = item.binary[key];\n    }\n  }\n}\n\n// 5. Final item construct karo\nconst outputItem = {\n  json: {\n    ...finalData\n  }\n};\n\n// Binary object sirf tabhi attach karo jab actually koi aur image bachi ho\nif (Object.keys(allBinaries).length > 0) {\n  outputItem.binary = allBinaries;\n}\n\nreturn [outputItem];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "c10f7755-d528-4fd6-8ec7-628f6a4828b9",
+      "name": "parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\n\nreturn [\n  {\n    json: {\n      type: item.type,\n      message: item.message,\n      sosLat: Number(item.lat),\n      sosLng: Number(item.lng),\n      videoUrl: item.videoUrl\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        416,
+        0
+      ],
+      "id": "ea08ea09-548b-4aee-b703-eead5e1e4fc8",
+      "name": "convertToNumber"
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/agronova-ce06c/databases/(default)/documents/users",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        624,
+        0
+      ],
+      "id": "5bf2d152-fdc8-484b-b3b1-fb4255871e65",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfunction getDistance(lat1, lon1, lat2, lon2) {\n  const R = 6371;\n  const dLat = (lat2 - lat1) * Math.PI / 180;\n  const dLon = (lon2 - lon1) * Math.PI / 180;\n\n  const a =\n    Math.sin(dLat / 2) ** 2 +\n    Math.cos(lat1 * Math.PI / 180) *\n    Math.cos(lat2 * Math.PI / 180) *\n    Math.sin(dLon / 2) ** 2;\n\n  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));\n  return R * c;\n}\n\nconst nearby = items.filter(item => {\n  const d = item.json;\n\n  const distance = getDistance(\n    d.sosLat,\n    d.sosLng,\n    d.userLat,\n    d.userLng\n  );\n\n  return distance <= 5;\n});\n\nreturn nearby.map(i => ({ json: i.json }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        16
+      ],
+      "id": "49f9ada2-04c9-4f0d-864c-158779685a32",
+      "name": "filterNearbyUsers"
+    },
+    {
+      "parameters": {
+        "jsCode": "  const docs = $input.first().json.documents;\n  \n  const users = docs.map(doc => {\n    const fields = doc.fields;\n  \n    return {\n      name: fields.name.stringValue,\n      userLat: fields.lat.doubleValue,\n      userLng: fields.lng.doubleValue,\n      fcmToken: fields.fcmToken.stringValue,\n      \n    };\n  });\n  \n  return users.map(user => ({ json: user }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        832,
+        0
+      ],
+      "id": "ae3f21c1-0026-47ee-a672-362e5050ef3a",
+      "name": "cleanUsers"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1088,
+        -192
+      ],
+      "id": "9e7d31d3-3316-4571-8659-cd70e350835a",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fcm.googleapis.com/v1/projects/agronova-ce06c/messages:send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": {\n    \"token\": \"{{ $json.fcmToken }}\",\n    \"notification\": {\n      \"title\": \"🚨 {{ $json.type }} Alert!\",\n      \"body\": \"Tap to watch emergency video and view location.\"\n    },\n    \"data\": {\n      \"type\": \"{{ $json.type }}\",\n      \"videoUrl\": \"{{ $json.videoUrl }}\",\n      \"lat\": \"{{ $json.sosLat }}\",\n      \"lng\": \"{{ $json.sosLng }}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1568,
+        16
+      ],
+      "id": "b358d11b-8305-4dd5-9a80-28ba29832d53",
+      "name": "sendNotification",
+      "credentials": {
+        "googleApi": {
+          "id": "Qx0cCFyut369H05E",
+          "name": "Google Service Account account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser": {
+      "main": [
+        [
+          {
+            "node": "convertToNumber",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "convertToNumber": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "cleanUsers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cleanUsers": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "filterNearbyUsers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "filterNearbyUsers": {
+      "main": [
+        [
+          {
+            "node": "sendNotification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "triggerCount": 1,
+  "meta": null
+}

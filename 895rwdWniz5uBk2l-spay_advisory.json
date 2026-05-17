@@ -1,0 +1,355 @@
+{
+  "name": "spay advisory",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "spray_advisory",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -528,
+        -240
+      ],
+      "id": "610131ce-e689-4c11-a293-2b62cef6c55c",
+      "name": "Webhook",
+      "webhookId": "e267afcc-3afe-4b94-9cd9-f71b38396559"
+    },
+    {
+      "parameters": {
+        "url": "https://api.openweathermap.org/data/2.5/weather",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "lat",
+              "value": "={{ $json.lat }}"
+            },
+            {
+              "name": "lon",
+              "value": "={{ $json.lon }}"
+            },
+            {
+              "name": "appid",
+              "value": "aef4adfda996e1def9b2c8e76a8177e9"
+            },
+            {
+              "name": "units",
+              "value": "metric"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        48,
+        -224
+      ],
+      "id": "858fd281-de64-4797-9a75-0826c63d3674",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const binary = $input.item.binary || {};\nconst keys = Object.keys(binary);\n\nconst images = [];\n\nfor (const key of keys) {\n  const buffer = await this.helpers.getBinaryDataBuffer(0, key);\n\n}\n\nreturn {\n  json: {\n    lat: $json.lat,\n    lon: $json.lon,\n    crop_name: $json.crop_name,\n    crop_stage:$json.crop_stage ,\n    farm_area:$json.farm_area ,\n    urgency_level: $json.urgency_level,\n    binary: $binary   // Saari images ko aage pass karna\n  }\n  \n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        -384
+      ],
+      "id": "30661bd4-8c04-41f0-89eb-77cd192f1b1c",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n\n  return {\n    json: {\n      // 1. Coordinates\n      lat: Number($('Code in JavaScript1').first().json.lat),\n      lon: Number($('Code in JavaScript1').first().json.lon),\n\n      // 2. Structured Crop Data\n      crop: {\n        name: $('Code in JavaScript1').first().json.crop_name,\n        stage: $('Code in JavaScript1').first().json.crop_stage,\n        farm_area: Number($('Code in JavaScript1').first().json.farm_area),\n        urgency: $('Code in JavaScript1').first().json.urgency_level\n      },\n\n      // 3. Important Weather Info\n      weather: {\n        condition: data.weather?.[0]?.main || \"Unknown\",\n        description: data.weather?.[0]?.description || \"N/A\",\n        temp: data.main?.temp || 0,\n        humidity: data.main?.humidity || 0,\n        wind_speed: data.wind?.speed || 0\n      }\n    },\n    // 4. Binary Files (All Images)\n    // Isse saari images (image0, image1...) piche se as-it-is aage jayengi\n    binary: $('Code in JavaScript1').first().json.binary\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        -224
+      ],
+      "id": "96174635-03a3-44f5-88e0-be69f0df9c39",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "binaryPropertyName": "=data",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-3.1-flash-lite-preview",
+          "mode": "list",
+          "cachedResultName": "models/gemini-3.1-flash-lite-preview"
+        },
+        "text": "=Act as an expert agricultural AI assistant with strong OCR interpretation and agrochemical knowledge.\n\nYour job is to carefully analyze the provided image and extract all relevant chemical product information with high accuracy.\n\n-------------------------------------\n🎯 PRIMARY OBJECTIVE\n-------------------------------------\n1. Perform deep OCR + visual understanding of the image.\n2. Identify:\n   - Chemical product name\n   - Dosage instructions\n   - Mixing instructions\n   - Safety precautions\n3. Interpret unclear or partially visible text intelligently.\n4. Combine extracted insights with given farm + weather context to generate actionable output.\n\n-------------------------------------\n📥 INPUT CONTEXT\n-------------------------------------\nChemical Layer: {{ $json.layer_number }}\n\nCrop Details:\n- Crop Name: {{ $json.crop.name }}\n- Crop Stage: {{ $json.crop.stage }}\n- Farm Area: {{ $json.crop.farm_area }} acres\n- Urgency: {{ $json.crop.urgency }}\n\nWeather Conditions:\n- Condition: {{ $json.weather.condition }}\n- Description: {{ $json.weather.description }}\n- Temperature: {{ $json.weather.temp }}\n- Humidity: {{ $json.weather.humidity }}\n- Wind Speed: {{ $json.weather.wind_speed }}\n\n-------------------------------------\n🧠 INTELLIGENCE RULES\n-------------------------------------\n1. If dosage is unclear in image:\n   → Provide standard recommended dosage based on crop + chemical type.\n\n2. Adjust safety warning based on:\n   - Wind speed\n   - Weather condition\n   - Chemical toxicity assumptions\n\n3. Generate spray timing (safe_window) based on:\n   - Low wind\n   - Moderate temperature\n   - No rain risk\n\n4. Ensure all outputs are:\n   - Practical for farmers\n   - Short and precise\n   - UI-friendly\n\n5. DO NOT hallucinate brand names unnecessarily.\n6. DO NOT leave fields empty — infer intelligently if needed.\n\n-------------------------------------\n📊 OUTPUT FORMAT (STRICT JSON ONLY)\n-------------------------------------\nReturn ONLY valid JSON. No explanation, no extra text.\n\n{\n  \"top_banner\": {\n    \"action\": \"\",\n    \"safe_window\": \"HH:MM AM - HH:MM PM\",\n    \"alert_text\": \"\"\n  },\n\n  \"hourly_forecast\": [\n    { \"time\": \"\", \"rain_chance\": \"\", \"wind_speed\": \"\", \"temp\": \"\" },\n    { \"time\": \"\", \"rain_chance\": \"\", \"wind_speed\": \"\", \"temp\": \"\" },\n    { \"time\": \"\", \"rain_chance\": \"\", \"wind_speed\": \"\", \"temp\": \"\" },\n    { \"time\": \"\", \"rain_chance\": \"\", \"wind_speed\": \"\", \"temp\": \"\" }\n  ],\n\n  \"chemical_details\": {\n    \"layer\": \"Chemical Layer {{ $json.layer_number }}\",\n    \"chemical_name\": \"\",\n    \"dosage\": \"\",\n    \"safety_warning\": \"\",\n    \"mixing_instruction\": \"\"\n  }\n}\n\n-------------------------------------\n📝 OUTPUT LANGUAGE RULE\n-------------------------------------\n⚠️ ALL VALUES MUST BE IN HINDI (देवनागरी लिपि में)\n\n-------------------------------------\n✨ STYLE GUIDELINES\n-------------------------------------\n- Keep responses short, sharp, and farmer-friendly\n- Use practical language (not technical jargon)\n- Format each value like UI-ready text\n- Avoid long paragraphs\n- Use actionable phrasing\n\n-------------------------------------\n❗ STRICT RULES\n-------------------------------------\n- ONLY return JSON\n- NO markdown\n- NO explanation\n- NO extra keys\n- NO static placeholder text\n- All values must be dynamic and context-aware\n- if the image is not valid like if its not chemical , fungiside pestiside , then it should clearly show that kind of image is not valid and it should not show the results in the the output should be based on images provided\n-------------------------------------\n🔍 FINAL CHECK BEFORE OUTPUT\n-------------------------------------\n✔ JSON is valid  \n✔ Hindi language used everywhere  \n✔ No missing fields  \n✔ Context used properly  \n✔ Clean and UI-ready  \n",
+        "inputType": "=binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        -224
+      ],
+      "id": "1d47b852-58b4-44e1-ab9b-ee22fa1315bb",
+      "name": "image1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "ZQ4DPMaLooDJZgsF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of $input.all()) {\n  const binaryData = item.binary;\n\n  // STRICT CHECK: Dekho ki binary object exist karta hai YA NAHI, aur kya wo khali hai\n  if (!binaryData || Object.keys(binaryData).length === 0) {\n    // Agar image nahi hai ya khali object aaya hai, toh sirf JSON pass karo\n    results.push({ json: item.json });\n    continue;\n  }\n\n  const keys = Object.keys(binaryData);\n\n  keys.forEach((key, index) => {\n    results.push({\n      json: {\n        ...item.json,\n        layer_number: index + 1,\n        current_image_key: key\n      },\n      binary: {\n        data: binaryData[key]\n      }\n    });\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        -224
+      ],
+      "id": "3674028c-febe-4987-8d3a-9240141e7dc7",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Gemini ka output text nikal rahe hain\nconst rawText = $json.content.parts[0].text;\n\n// Markdown (```json aur ```) ko hata rahe hain\nconst cleanText = rawText.replace(/```json/g, \"\").replace(/```/g, \"\").trim();\n\n// String ko wapas JSON object bana rahe hain\ntry {\n  const jsonOutput = JSON.parse(cleanText);\n  return {\n    json: jsonOutput\n  };\n} catch (e) {\n  // Agar koi image scan fail hui toh fallback\n  return {\n    json: {\n      layer: \"Error\",\n      chemical_name: \"Unreadable\",\n      dosage: \"Check label manually\"\n    }\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        -224
+      ],
+      "id": "f848cdc8-38af-487b-9389-22c573edfebd",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all(); // Yeh aggregate node ke baad aayega\n\n// Pehle item se UI ka common data utha lo (Banner aur Forecast)\nconst topBanner = items[0].json.top_banner;\nconst hourlyForecast = items[0].json.hourly_forecast;\n\n// Saare items se chemical details nikal kar ek list banao\nconst chemicalList = items.map(item => item.json.chemical_details);\n\nreturn {\n  json: {\n    top_banner: topBanner,\n    hourly_forecast: hourlyForecast,\n    chemicals: chemicalList\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        -224
+      ],
+      "id": "143d8993-5417-4d70-94d2-362f1e7c359d",
+      "name": "Code in JavaScript4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\n\n// data.json parse karo\nconst binaryDataBuffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst jsonString = binaryDataBuffer.toString('utf-8');\nconst parsedData = JSON.parse(jsonString);\n\n// Saari binary fields collect karo (data.json chhod ke)\nconst allBinaries = {};\nfor (const key of Object.keys(item.binary || {})) {\n  if (key !== 'data') {\n    allBinaries[key] = item.binary[key];\n  }\n}\n\nreturn [{\n  json: {\n    ...parsedData\n  },\n  binary: allBinaries\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        -384
+      ],
+      "id": "82b5f927-9599-4d92-8ae6-c0a27eea547e",
+      "name": "parser"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1280,
+        -224
+      ],
+      "id": "473783b5-3f7e-4774-9b32-b965e2135e0c",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "logic engine": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "image1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "parser": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "purushottampatel.app.n8n.cloud",
+            "user-agent": "okhttp/4.12.0",
+            "content-length": "28220",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "180.150.243.77",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "IN",
+            "cf-ray": "9f43f4c77bc33be6-BOM",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "multipart/form-data; boundary=26007124-5a1b-47c9-b321-2ec63863d084",
+            "x-forwarded-for": "180.150.243.77, 172.69.178.45",
+            "x-forwarded-host": "purushottampatel.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-78-54c9bd7fd8-npmbr",
+            "x-is-trusted": "yes",
+            "x-real-ip": "180.150.243.77"
+          },
+          "params": {},
+          "query": {},
+          "body": {},
+          "webhookUrl": "https://purushottampatel.app.n8n.cloud/webhook/spray_advisory",
+          "executionMode": "production"
+        },
+        "binary": {
+          "image1": {
+            "mimeType": "image/jpeg",
+            "fileType": "image",
+            "fileExtension": "jpg",
+            "data": "filesystem-v2",
+            "fileName": "spray_img_0_17775249464178540386971708606180.jpg",
+            "id": "filesystem-v2:workflows/895rwdWniz5uBk2l/executions/temp/binary_data/9b8caba0-5b80-490a-b141-59ae9f33ad58",
+            "fileSize": "27.7 kB",
+            "bytes": 27677
+          },
+          "data": {
+            "mimeType": "application/json; charset=utf-8",
+            "fileType": "json",
+            "fileExtension": "json",
+            "data": "filesystem-v2",
+            "fileName": "roixtd7ae6dxou1dd8y57kugg",
+            "id": "filesystem-v2:workflows/895rwdWniz5uBk2l/executions/temp/binary_data/bc6a7ce3-b237-4723-b9c0-dbd103288a11",
+            "fileSize": "108 B",
+            "bytes": 108
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "triggerCount": 1,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
