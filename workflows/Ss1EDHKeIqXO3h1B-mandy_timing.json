@@ -87,7 +87,7 @@
     },
     {
       "parameters": {
-        "url": "=https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24?api-key=579b464db66ec23bdd0000016eba3f7ab943440a58806c6dc80f6b44&format=json&filters[State]={{ $('Edit Fields1').item.json.State }}&filters[District]={{ $json.district_array }}&filters[Commodity]={{ $('Edit Fields1').item.json.Crop_name }}&sort[Arrival_Date]=desc&limit=2000",
+        "url": "=https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24?api-key=YOUR_DATA_GOV_API_KEY&format=json&filters[State]={{ $('Edit Fields1').item.json.State }}&filters[District]={{ $json.district_array }}&filters[Commodity]={{ $('Edit Fields1').item.json.Crop_name }}&sort[Arrival_Date]=desc&limit=2000",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

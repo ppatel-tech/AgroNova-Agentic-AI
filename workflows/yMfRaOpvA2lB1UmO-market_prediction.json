@@ -79,7 +79,7 @@
     },
     {
       "parameters": {
-        "url": "=https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24?api-key=579b464db66ec23bdd0000016eba3f7ab943440a58806c6dc80f6b44&format=json&filters[State]={{ $json.state }}&filters[District]={{ $json.district }}&filters[Commodity]={{ $json.commodity }}&sort[Arrival_Date]=desc&limit=4000\n",
+        "url": "=https://api.data.gov.in/resource/35985678-0d79-46b4-9ed6-6f13308a1d24?api-key=YOUR_DATA_GOV_API_KEY&format=json&filters[State]={{ $json.state }}&filters[District]={{ $json.district }}&filters[Commodity]={{ $json.commodity }}&sort[Arrival_Date]=desc&limit=4000\n",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -154,7 +154,7 @@
           "parameters": [
             {
               "name": "appid",
-              "value": "aef4adfda996e1def9b2c8e76a8177e9"
+              "value": "YOUR_OPEN_WEATHER_API_KEY"
             },
             {
               "name": "units",

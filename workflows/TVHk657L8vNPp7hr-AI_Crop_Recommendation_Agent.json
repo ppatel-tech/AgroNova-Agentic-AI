@@ -166,7 +166,7 @@
             },
             {
               "name": "appid",
-              "value": "66ef7b7415688fb4fbe649deaf1122b0"
+              "value": "YOUR_OPEN_WEATHER_API_KEY"
             },
             {
               "name": "units",
@@ -306,7 +306,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyBFnCUCLmThPD7DSjajlnaK4iN_xL1SBF8",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -470,7 +470,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer YOUR_API_KEY(removed because of Security reasons)"
+              "value": "Bearer YOUR_GITHUB_TOKEN(removed because of Security reasons)"
             }
           ]
         },
